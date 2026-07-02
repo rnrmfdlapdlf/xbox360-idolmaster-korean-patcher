@@ -35,7 +35,7 @@ namespace ImasKoreanPatcher
             return translations;
         }
 
-        private static string TryReadStringProperty(string json, string propertyName)
+        internal static string TryReadStringProperty(string json, string propertyName)
         {
             string needle = "\"" + propertyName + "\"";
             int nameIndex = json.IndexOf(needle, StringComparison.Ordinal);
