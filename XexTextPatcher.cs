@@ -44,7 +44,7 @@ namespace ImasKoreanPatcher
             Directory.CreateDirectory(patchWorkRoot);
 
             string decryptedPath = Path.Combine(patchWorkRoot, "default_decrypted_uncompressed.xex");
-            Report(progress, 74, "default.xex 변환 중...");
+            Report(progress, 76, "default.xex 변환 중...");
             ExternalToolRunner.Run(
                 xexToolPath,
                 "-e d -c u -o " + ExternalToolRunner.QuoteArgument(decryptedPath) + " " + ExternalToolRunner.QuoteArgument(defaultXexPath),
@@ -58,7 +58,7 @@ namespace ImasKoreanPatcher
 
             byte[] data = File.ReadAllBytes(decryptedPath);
             int originalSize = checked((int)new FileInfo(defaultXexPath).Length);
-            Report(progress, 76, "default.xex 문자열 패치 중...");
+            Report(progress, 78, "default.xex 문자열 패치 중...");
             PatchUtf16BeStrings(data, result);
 
             if (result.StringsPatched == 0)
@@ -79,7 +79,7 @@ namespace ImasKoreanPatcher
             }
 
             File.WriteAllBytes(defaultXexPath, data);
-            Report(progress, 78, String.Format("default.xex 패치 완료: {0:N0}개 문자열", result.StringsPatched));
+            Report(progress, 80, String.Format("default.xex 패치 완료: {0:N0}개 문자열", result.StringsPatched));
             return result;
         }
 

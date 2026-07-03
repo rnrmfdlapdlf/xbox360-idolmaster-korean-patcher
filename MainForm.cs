@@ -13,6 +13,8 @@ namespace ImasKoreanPatcher
         private Panel dropPanel;
         private Label dropTitleLabel;
         private Label dropHintLabel;
+        private CheckBox doubleAuditionFansCheckBox;
+        private CheckBox ensureAuditionPassCountCheckBox;
         private Button patchButton;
         private ProgressBar progressBar;
         private TextBox statusTextBox;
@@ -143,6 +145,20 @@ namespace ImasKoreanPatcher
             panel.Dock = DockStyle.Fill;
             panel.Margin = new Padding(0, 0, 0, 14);
 
+            TableLayoutPanel layout = new TableLayoutPanel();
+            layout.ColumnCount = 1;
+            layout.RowCount = 7;
+            layout.Dock = DockStyle.Fill;
+            layout.BackColor = BackColor;
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 45F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 58F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 55F));
+            panel.Controls.Add(layout);
+
             patchButton = new Button();
             patchButton.Anchor = AnchorStyles.None;
             patchButton.Size = new Size(166, 58);
@@ -150,12 +166,38 @@ namespace ImasKoreanPatcher
             patchButton.Font = new Font(Font.FontFamily, 12F, FontStyle.Bold, GraphicsUnit.Point);
             patchButton.Enabled = false;
             patchButton.Click += OnPatchButtonClick;
-            panel.Controls.Add(patchButton);
-            panel.Resize += delegate
-            {
-                patchButton.Left = Math.Max(0, (panel.ClientSize.Width - patchButton.Width) / 2);
-                patchButton.Top = Math.Max(0, (panel.ClientSize.Height - patchButton.Height) / 2);
-            };
+            layout.Controls.Add(patchButton, 0, 1);
+
+            Panel separator = new Panel();
+            separator.BackColor = Color.FromArgb(205, 211, 222);
+            separator.Dock = DockStyle.Fill;
+            separator.Margin = new Padding(10, 14, 10, 9);
+            layout.Controls.Add(separator, 0, 2);
+
+            Label cheatLabel = new Label();
+            cheatLabel.Dock = DockStyle.Fill;
+            cheatLabel.Text = "\uce58\ud2b8";
+            cheatLabel.TextAlign = ContentAlignment.MiddleLeft;
+            cheatLabel.Font = new Font(Font.FontFamily, 9F, FontStyle.Bold, GraphicsUnit.Point);
+            cheatLabel.ForeColor = Color.FromArgb(34, 42, 54);
+            cheatLabel.Margin = new Padding(10, 0, 0, 0);
+            layout.Controls.Add(cheatLabel, 0, 3);
+
+            doubleAuditionFansCheckBox = new CheckBox();
+            doubleAuditionFansCheckBox.Anchor = AnchorStyles.Left;
+            doubleAuditionFansCheckBox.AutoSize = true;
+            doubleAuditionFansCheckBox.Text = "\uc624\ub514\uc158 \ud32c \uc99d\uac00\ub7c9 2\ubc30";
+            doubleAuditionFansCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
+            doubleAuditionFansCheckBox.Margin = new Padding(10, 0, 0, 0);
+            layout.Controls.Add(doubleAuditionFansCheckBox, 0, 4);
+
+            ensureAuditionPassCountCheckBox = new CheckBox();
+            ensureAuditionPassCountCheckBox.Anchor = AnchorStyles.Left;
+            ensureAuditionPassCountCheckBox.AutoSize = true;
+            ensureAuditionPassCountCheckBox.Text = "\uc624\ub514\uc158\uc758 \ud569\uaca9\uc790\uc218 2\uba85\uc774\uc0c1\uc73c\ub85c \ubcc0\uacbd";
+            ensureAuditionPassCountCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
+            ensureAuditionPassCountCheckBox.Margin = new Padding(10, 0, 0, 0);
+            layout.Controls.Add(ensureAuditionPassCountCheckBox, 0, 5);
 
             return panel;
         }
@@ -250,7 +292,11 @@ namespace ImasKoreanPatcher
             }
 
             string isoPath = selectedIsoPath;
+            bool doubleAuditionFans = doubleAuditionFansCheckBox != null && doubleAuditionFansCheckBox.Checked;
+            bool ensureAuditionPassCount = ensureAuditionPassCountCheckBox != null && ensureAuditionPassCountCheckBox.Checked;
             patchButton.Enabled = false;
+            doubleAuditionFansCheckBox.Enabled = false;
+            ensureAuditionPassCountCheckBox.Enabled = false;
             dropPanel.Enabled = false;
             progressBar.Value = 0;
             SetStatus("\ud328\uce58 \uc2e4\ud589 \uc911...");
@@ -259,7 +305,7 @@ namespace ImasKoreanPatcher
             patchWorker.WorkerReportsProgress = true;
             patchWorker.DoWork += delegate(object workerSender, DoWorkEventArgs workerArgs)
             {
-                RunIsoRoundTrip((BackgroundWorker)workerSender, isoPath);
+                RunIsoRoundTrip((BackgroundWorker)workerSender, isoPath, doubleAuditionFans, ensureAuditionPassCount);
             };
             patchWorker.ProgressChanged += delegate(object workerSender, ProgressChangedEventArgs progressArgs)
             {
@@ -273,6 +319,8 @@ namespace ImasKoreanPatcher
             {
                 dropPanel.Enabled = true;
                 patchButton.Enabled = !String.IsNullOrEmpty(selectedIsoPath);
+                doubleAuditionFansCheckBox.Enabled = true;
+                ensureAuditionPassCountCheckBox.Enabled = true;
                 if (completedArgs.Error != null)
                 {
                     SetStatus("\uc624\ub958: " + completedArgs.Error.Message);
@@ -282,7 +330,11 @@ namespace ImasKoreanPatcher
             patchWorker.RunWorkerAsync();
         }
 
-        private void RunIsoRoundTrip(BackgroundWorker worker, string isoPath)
+        private void RunIsoRoundTrip(
+            BackgroundWorker worker,
+            string isoPath,
+            bool doubleAuditionFans,
+            bool ensureAuditionPassCount)
         {
             Report(worker, 8, "\uc785\ub825 ISO \ud655\uc778 \uc911...");
             if (!File.Exists(isoPath))
@@ -382,6 +434,60 @@ namespace ImasKoreanPatcher
                 throw new InvalidOperationException("BXR\uc5d0 \ubc18\uc601\ub41c \ubb38\uc790\uc5f4\uc774 0\uac1c\uc785\ub2c8\ub2e4.");
             }
 
+            AuditionFanPatchResult auditionFanResult = null;
+            if (doubleAuditionFans || ensureAuditionPassCount)
+            {
+                AuditionFanPatcher auditionFanPatcher = new AuditionFanPatcher();
+                auditionFanResult = auditionFanPatcher.PatchExtractedRoot(
+                    extractRoot,
+                    doubleAuditionFans,
+                    ensureAuditionPassCount,
+                    delegate(int percent, string message)
+                    {
+                        Report(worker, percent, message);
+                    });
+
+                if (auditionFanResult.TargetBxrFilesSeen == 0)
+                {
+                    throw new InvalidOperationException("\uc624\ub514\uc158 \ud32c \uc99d\uac00\ub7c9 \ud328\uce58 \ub300\uc0c1\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.");
+                }
+
+                if (doubleAuditionFans && auditionFanResult.FanValuesPatched == 0 && auditionFanResult.FanValuesAlreadyPatched == 0)
+                {
+                    throw new InvalidOperationException("\uc624\ub514\uc158 \ud32c \uc99d\uac00\ub7c9\uc5d0 \ubc18\uc601\ub41c \ud544\ub4dc\uac00 0\uac1c\uc785\ub2c8\ub2e4.");
+                }
+
+                if (ensureAuditionPassCount && auditionFanResult.PassValuesPatched == 0 && auditionFanResult.PassValuesAlreadyAtLeastTwo == 0)
+                {
+                    throw new InvalidOperationException("\uc624\ub514\uc158 \ud569\uaca9\uc790\uc218\uc5d0 \ubc18\uc601\ub41c \ud544\ub4dc\uac00 0\uac1c\uc785\ub2c8\ub2e4.");
+                }
+            }
+
+            ImageTexturePatcher imagePatcher = ImageTexturePatcher.Load(assetRoot);
+            ImageTexturePatchResult imageResult = imagePatcher.PatchExtractedRoot(
+                extractRoot,
+                delegate(int percent, string message)
+                {
+                    Report(worker, percent, message);
+                });
+
+            int imageTexturesChanged = imageResult.EntriesPatched + imageResult.EntriesAdded;
+            if (imageResult.ManifestRows > 0 && imageTexturesChanged == 0)
+            {
+                throw new InvalidOperationException("\uc774\ubbf8\uc9c0\uc5d0 \ubc18\uc601\ub41c \ud14d\uc2a4\ucc98\uac00 0\uac1c\uc785\ub2c8\ub2e4.");
+            }
+
+            if (imageResult.MissingAssets > 0 || imageResult.MissingBnaFiles > 0 || imageResult.MissingEntries > 0 || imageResult.Errors > 0)
+            {
+                throw new InvalidOperationException(
+                    String.Format(
+                        "\uc774\ubbf8\uc9c0 \ud328\uce58 \uc911 \ub204\ub77d\uc774 \uc788\uc2b5\ub2c8\ub2e4. Assets {0:N0}, BNA {1:N0}, Entry {2:N0}, Errors {3:N0}",
+                        imageResult.MissingAssets,
+                        imageResult.MissingBnaFiles,
+                        imageResult.MissingEntries,
+                        imageResult.Errors));
+            }
+
             XexTextPatcher xexPatcher = new XexTextPatcher(defaultXexTranslations, remapper);
             XexPatchResult xexResult = xexPatcher.PatchExtractedRoot(
                 extractRoot,
@@ -401,7 +507,7 @@ namespace ImasKoreanPatcher
                     Report(worker, percent, message);
                 });
 
-            Report(worker, 90, "\ubc88\uc5ed\ub41c \ud30c\uc77c\ub85c ISO \uc7ac\uc0dd\uc131 \uc911...");
+            Report(worker, 91, "\ubc88\uc5ed\ub41c \ud30c\uc77c\ub85c ISO \uc7ac\uc0dd\uc131 \uc911...");
             RunTool(
                 exisoPath,
                 "-c " + QuoteArgument(extractRoot) + " " + QuoteArgument(outputIso),
@@ -421,7 +527,43 @@ namespace ImasKoreanPatcher
             Report(
                 worker,
                 100,
-                String.Format("\uc644\ub8cc: BNA {0:N0}\uac1c, BXR {1:N0}\uac1c, XEX {2:N0}\uac1c \ubb38\uc790\uc5f4 \ubc18\uc601, {3}", patchResult.MsgEntriesPatched, bxrResult.StringsPatched, xexResult.StringsPatched, outputIso));
+                String.Format(
+                    "\uc644\ub8cc: BNA {0:N0}\uac1c, BXR {1:N0}\uac1c, \uc774\ubbf8\uc9c0 {2:N0}\uac1c, XEX {3:N0}\uac1c \ubb38\uc790\uc5f4 \ubc18\uc601{4}, {5}",
+                    patchResult.MsgEntriesPatched,
+                    bxrResult.StringsPatched,
+                    imageTexturesChanged,
+                    xexResult.StringsPatched,
+                    FormatAuditionFanSummary(auditionFanResult),
+                    outputIso));
+        }
+
+        private static string FormatAuditionFanSummary(AuditionFanPatchResult result)
+        {
+            if (result == null)
+            {
+                return String.Empty;
+            }
+
+            StringBuilder builder = new StringBuilder();
+            if (result.FanValuesPatched > 0)
+            {
+                builder.AppendFormat(", \uc624\ub514\uc158 \ud32c {0:N0}\uac1c \ubc18\uc601", result.FanValuesPatched);
+            }
+            else if (result.FanValuesAlreadyPatched > 0)
+            {
+                builder.AppendFormat(", \uc624\ub514\uc158 \ud32c \uc774\ubbf8 \uc801\uc6a9 {0:N0}\uac1c", result.FanValuesAlreadyPatched);
+            }
+
+            if (result.PassValuesPatched > 0)
+            {
+                builder.AppendFormat(", \ud569\uaca9\uc790\uc218 {0:N0}\uac1c \ubc18\uc601", result.PassValuesPatched);
+            }
+            else if (result.PassValuesAlreadyAtLeastTwo > 0)
+            {
+                builder.AppendFormat(", \ud569\uaca9\uc790\uc218 \uc774\ubbf8 2\uba85\uc774\uc0c1 {0:N0}\uac1c", result.PassValuesAlreadyAtLeastTwo);
+            }
+
+            return builder.ToString();
         }
 
         private static string FindAssetsRoot(string preferredPath)
