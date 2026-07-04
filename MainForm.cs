@@ -33,13 +33,16 @@ namespace ImasKoreanPatcher
             AllowDrop = true;
 
             TableLayoutPanel root = new TableLayoutPanel();
-            root.ColumnCount = 2;
+            root.ColumnCount = 5;
             root.RowCount = 3;
             root.Dock = DockStyle.Fill;
             root.Padding = new Padding(18);
             root.BackColor = BackColor;
-            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 70F));
-            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30F));
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 39F));
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 1F));
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 38F));
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 1F));
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 23F));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 28F));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
@@ -48,8 +51,15 @@ namespace ImasKoreanPatcher
             dropPanel = BuildDropPanel();
             root.Controls.Add(dropPanel, 0, 0);
 
-            Panel buttonPanel = BuildButtonPanel();
-            root.Controls.Add(buttonPanel, 1, 0);
+            root.Controls.Add(BuildVerticalSeparator(), 1, 0);
+
+            Panel cheatPanel = BuildCheatPanel();
+            root.Controls.Add(cheatPanel, 2, 0);
+
+            root.Controls.Add(BuildVerticalSeparator(), 3, 0);
+
+            Panel buttonPanel = BuildPatchButtonPanel();
+            root.Controls.Add(buttonPanel, 4, 0);
 
             progressBar = new ProgressBar();
             progressBar.Dock = DockStyle.Fill;
@@ -58,7 +68,7 @@ namespace ImasKoreanPatcher
             progressBar.Value = 0;
             progressBar.Style = ProgressBarStyle.Continuous;
             root.Controls.Add(progressBar, 0, 1);
-            root.SetColumnSpan(progressBar, 2);
+            root.SetColumnSpan(progressBar, 5);
 
             statusTextBox = new TextBox();
             statusTextBox.Dock = DockStyle.Fill;
@@ -70,7 +80,7 @@ namespace ImasKoreanPatcher
             statusTextBox.TabStop = true;
             statusTextBox.Text = "\ub300\uae30 \uc911";
             root.Controls.Add(statusTextBox, 0, 2);
-            root.SetColumnSpan(statusTextBox, 2);
+            root.SetColumnSpan(statusTextBox, 5);
 
             DragEnter += OnDragEnter;
             DragDrop += OnDragDrop;
@@ -102,16 +112,18 @@ namespace ImasKoreanPatcher
             center.RowCount = 2;
             center.Dock = DockStyle.Fill;
             center.BackColor = Color.White;
-            center.RowStyles.Add(new RowStyle(SizeType.Absolute, 48F));
+            center.RowStyles.Add(new RowStyle(SizeType.Absolute, 54F));
             center.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
             inner.Controls.Add(center, 0, 1);
 
             dropTitleLabel = new Label();
             dropTitleLabel.Dock = DockStyle.Fill;
-            dropTitleLabel.TextAlign = ContentAlignment.BottomCenter;
-            dropTitleLabel.Font = new Font(Font.FontFamily, 14F, FontStyle.Bold, GraphicsUnit.Point);
+            dropTitleLabel.TextAlign = ContentAlignment.MiddleCenter;
+            dropTitleLabel.Font = new Font(Font.FontFamily, 12F, FontStyle.Bold, GraphicsUnit.Point);
             dropTitleLabel.ForeColor = Color.FromArgb(34, 42, 54);
-            dropTitleLabel.Text = "\uc6d0\ubcf8 ISO\ub97c \uc5ec\uae30\uc5d0 \ub4dc\ub798\uadf8 & \ub4dc\ub86d";
+            dropTitleLabel.AutoSize = false;
+            dropTitleLabel.UseMnemonic = false;
+            dropTitleLabel.Text = "\uc6d0\ubcf8 ISO\ub97c \uc5ec\uae30\uc5d0\r\n\ub4dc\ub798\uadf8 & \ub4dc\ub86d";
             center.Controls.Add(dropTitleLabel, 0, 0);
 
             dropHintLabel = new Label();
@@ -138,25 +150,77 @@ namespace ImasKoreanPatcher
             return panel;
         }
 
-        private Panel BuildButtonPanel()
+        private Panel BuildVerticalSeparator()
+        {
+            Panel separator = new Panel();
+            separator.BackColor = Color.FromArgb(205, 211, 222);
+            separator.Dock = DockStyle.Fill;
+            separator.Margin = new Padding(0, 8, 0, 22);
+            return separator;
+        }
+
+        private Panel BuildCheatPanel()
         {
             Panel panel = new Panel();
             panel.BackColor = BackColor;
             panel.Dock = DockStyle.Fill;
-            panel.Margin = new Padding(0, 0, 0, 14);
+            panel.Margin = new Padding(16, 0, 12, 14);
 
             TableLayoutPanel layout = new TableLayoutPanel();
             layout.ColumnCount = 1;
-            layout.RowCount = 7;
+            layout.RowCount = 5;
             layout.Dock = DockStyle.Fill;
             layout.BackColor = BackColor;
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 45F));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 58F));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24F));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24F));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 8F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 55F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            panel.Controls.Add(layout);
+
+            Label cheatLabel = new Label();
+            cheatLabel.Dock = DockStyle.Fill;
+            cheatLabel.Text = "\uce58\ud2b8";
+            cheatLabel.TextAlign = ContentAlignment.MiddleLeft;
+            cheatLabel.Font = new Font(Font.FontFamily, 9F, FontStyle.Bold, GraphicsUnit.Point);
+            cheatLabel.ForeColor = Color.FromArgb(34, 42, 54);
+            cheatLabel.Margin = new Padding(0);
+            layout.Controls.Add(cheatLabel, 0, 1);
+
+            doubleAuditionFansCheckBox = new CheckBox();
+            doubleAuditionFansCheckBox.Anchor = AnchorStyles.Left;
+            doubleAuditionFansCheckBox.AutoSize = true;
+            doubleAuditionFansCheckBox.Text = "\uc624\ub514\uc158 \ud32c \uc99d\uac00\ub7c9 2\ubc30";
+            doubleAuditionFansCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
+            doubleAuditionFansCheckBox.Margin = new Padding(0);
+            layout.Controls.Add(doubleAuditionFansCheckBox, 0, 2);
+
+            ensureAuditionPassCountCheckBox = new CheckBox();
+            ensureAuditionPassCountCheckBox.Anchor = AnchorStyles.Left;
+            ensureAuditionPassCountCheckBox.AutoSize = true;
+            ensureAuditionPassCountCheckBox.Text = "\uc624\ub514\uc158\uc758 \ud569\uaca9\uc790\uc218 2\uba85\uc774\uc0c1\uc73c\ub85c \ubcc0\uacbd";
+            ensureAuditionPassCountCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
+            ensureAuditionPassCountCheckBox.Margin = new Padding(0);
+            layout.Controls.Add(ensureAuditionPassCountCheckBox, 0, 3);
+
+            return panel;
+        }
+
+        private Panel BuildPatchButtonPanel()
+        {
+            Panel panel = new Panel();
+            panel.BackColor = BackColor;
+            panel.Dock = DockStyle.Fill;
+            panel.Margin = new Padding(8, 0, 0, 14);
+
+            TableLayoutPanel layout = new TableLayoutPanel();
+            layout.ColumnCount = 1;
+            layout.RowCount = 3;
+            layout.Dock = DockStyle.Fill;
+            layout.BackColor = BackColor;
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 58F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             panel.Controls.Add(layout);
 
             patchButton = new Button();
@@ -167,37 +231,6 @@ namespace ImasKoreanPatcher
             patchButton.Enabled = false;
             patchButton.Click += OnPatchButtonClick;
             layout.Controls.Add(patchButton, 0, 1);
-
-            Panel separator = new Panel();
-            separator.BackColor = Color.FromArgb(205, 211, 222);
-            separator.Dock = DockStyle.Fill;
-            separator.Margin = new Padding(10, 14, 10, 9);
-            layout.Controls.Add(separator, 0, 2);
-
-            Label cheatLabel = new Label();
-            cheatLabel.Dock = DockStyle.Fill;
-            cheatLabel.Text = "\uce58\ud2b8";
-            cheatLabel.TextAlign = ContentAlignment.MiddleLeft;
-            cheatLabel.Font = new Font(Font.FontFamily, 9F, FontStyle.Bold, GraphicsUnit.Point);
-            cheatLabel.ForeColor = Color.FromArgb(34, 42, 54);
-            cheatLabel.Margin = new Padding(10, 0, 0, 0);
-            layout.Controls.Add(cheatLabel, 0, 3);
-
-            doubleAuditionFansCheckBox = new CheckBox();
-            doubleAuditionFansCheckBox.Anchor = AnchorStyles.Left;
-            doubleAuditionFansCheckBox.AutoSize = true;
-            doubleAuditionFansCheckBox.Text = "\uc624\ub514\uc158 \ud32c \uc99d\uac00\ub7c9 2\ubc30";
-            doubleAuditionFansCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
-            doubleAuditionFansCheckBox.Margin = new Padding(10, 0, 0, 0);
-            layout.Controls.Add(doubleAuditionFansCheckBox, 0, 4);
-
-            ensureAuditionPassCountCheckBox = new CheckBox();
-            ensureAuditionPassCountCheckBox.Anchor = AnchorStyles.Left;
-            ensureAuditionPassCountCheckBox.AutoSize = true;
-            ensureAuditionPassCountCheckBox.Text = "\uc624\ub514\uc158\uc758 \ud569\uaca9\uc790\uc218 2\uba85\uc774\uc0c1\uc73c\ub85c \ubcc0\uacbd";
-            ensureAuditionPassCountCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
-            ensureAuditionPassCountCheckBox.Margin = new Padding(10, 0, 0, 0);
-            layout.Controls.Add(ensureAuditionPassCountCheckBox, 0, 5);
 
             return panel;
         }
