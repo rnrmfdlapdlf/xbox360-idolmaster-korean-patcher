@@ -28,42 +28,50 @@ namespace ImasKoreanPatcher
                     }
 
                     string textId = JsonTranslationStore.TryReadStringProperty(line, "text_id");
-                    string jpText = JsonTranslationStore.TryReadStringProperty(line, "jp_text");
                     string koText = JsonTranslationStore.TryReadStringProperty(line, "ko_text");
-                    if (String.IsNullOrEmpty(jpText) || String.IsNullOrEmpty(koText))
+                    if (String.IsNullOrEmpty(koText))
                     {
                         continue;
                     }
 
-                    string expectedId = ComputeTextId(jpText);
-                    if (!String.Equals(textId, expectedId, StringComparison.Ordinal))
+                    if (String.IsNullOrEmpty(textId) || !textId.StartsWith(IdPrefix, StringComparison.Ordinal))
                     {
-                        throw new InvalidDataException(
-                            String.Format(
-                                "Invalid BXR text_id at line {0}: expected {1}.",
-                                lineNumber,
-                                expectedId));
+                        throw new InvalidDataException("Invalid BXR text_id at line " + lineNumber.ToString() + ".");
+                    }
+
+                    string jpText = JsonTranslationStore.TryReadStringProperty(line, "jp_text");
+                    if (!String.IsNullOrEmpty(jpText))
+                    {
+                        string expectedId = ComputeTextId(jpText);
+                        if (!String.Equals(textId, expectedId, StringComparison.Ordinal))
+                        {
+                            throw new InvalidDataException(
+                                String.Format(
+                                    "Invalid BXR text_id at line {0}: expected {1}.",
+                                    lineNumber,
+                                    expectedId));
+                        }
                     }
 
                     string existing;
-                    if (translations.TryGetValue(jpText, out existing))
+                    if (translations.TryGetValue(textId, out existing))
                     {
                         if (!String.Equals(existing, koText, StringComparison.Ordinal))
                         {
-                            throw new InvalidDataException("Conflicting BXR translation for source text at line " + lineNumber.ToString() + ".");
+                            throw new InvalidDataException("Conflicting BXR translation for text_id at line " + lineNumber.ToString() + ".");
                         }
 
                         continue;
                     }
 
-                    translations[jpText] = koText;
+                    translations[textId] = koText;
                 }
             }
 
             return translations;
         }
 
-        private static string ComputeTextId(string jpText)
+        internal static string ComputeTextId(string jpText)
         {
             byte[] bytes = Encoding.UTF8.GetBytes(HashSalt + jpText);
             using (SHA256 sha256 = SHA256.Create())

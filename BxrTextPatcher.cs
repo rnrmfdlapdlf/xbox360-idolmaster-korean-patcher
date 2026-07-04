@@ -147,8 +147,9 @@ namespace ImasKoreanPatcher
 
                 result.CandidateStringsScanned++;
 
+                string textId = BxrTextTranslationStore.ComputeTextId(candidate.Text);
                 string koText;
-                if (!translations.TryGetValue(candidate.Text, out koText))
+                if (!translations.TryGetValue(textId, out koText))
                 {
                     continue;
                 }
