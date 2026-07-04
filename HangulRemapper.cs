@@ -87,7 +87,14 @@ namespace ImasKoreanPatcher
             Dictionary<char, bool> missing = null;
             for (int index = 0; index < text.Length; index++)
             {
-                char ch = text[index];
+                char source = text[index];
+                char ch = NormalizeDisplayChar(source);
+                if (ch != source && output == null)
+                {
+                    output = new StringBuilder(text.Length);
+                    output.Append(text, 0, index);
+                }
+
                 char donor;
                 if (map.TryGetValue(ch, out donor))
                 {
@@ -123,6 +130,16 @@ namespace ImasKoreanPatcher
             }
 
             return output == null ? text : output.ToString();
+        }
+
+        private static char NormalizeDisplayChar(char ch)
+        {
+            if (ch == '~')
+            {
+                return '\uFF5E';
+            }
+
+            return ch;
         }
 
         private static bool NeedsRemap(char ch)

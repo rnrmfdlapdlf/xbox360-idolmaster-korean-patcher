@@ -472,6 +472,20 @@ namespace ImasKoreanPatcher
                 throw new InvalidOperationException("\ubc18\uc601\ub41c \ubc88\uc5ed \ubb38\uc790\uc5f4\uc774 0\uac1c\uc785\ub2c8\ub2e4.");
             }
 
+            CreditLinePatchResult creditLineResult = null;
+            /*
+            Disabled: m0377 renders a fallback glyph in the credits screen.
+            Keep this as a last-resort credit marker if no cleaner display path is found.
+            creditLineResult = CreditLinePatcher.PatchExtractedRoot(
+                extractRoot,
+                remapper,
+                delegate(int percent, string message)
+                {
+                    Report(worker, percent, message);
+                });
+            ValidateCreditLinePatch(creditLineResult);
+            */
+
             CommunicationPerfectPatchResult communicationPerfectResult = null;
             if (communicationPerfect)
             {
@@ -622,9 +636,57 @@ namespace ImasKoreanPatcher
                     bxrResult.StringsPatched,
                     imageTexturesChanged,
                     xexResult.StringsPatched,
-                    FormatCommunicationPerfectSummary(communicationPerfectResult),
-                    FormatAuditionFanSummary(auditionFanResult),
+                    FormatCreditLineSummary(creditLineResult),
+                    FormatCommunicationPerfectSummary(communicationPerfectResult) + FormatAuditionFanSummary(auditionFanResult),
                     outputIso));
+        }
+
+        private static void ValidateCreditLinePatch(CreditLinePatchResult result)
+        {
+            if (result == null || result.Errors > 0)
+            {
+                throw new InvalidOperationException("Credit line patch failed.");
+            }
+
+            if (!result.TargetBnaFound)
+            {
+                throw new InvalidOperationException("Credit line patch target initialFix.bna was not found.");
+            }
+
+            if (!result.TargetScbFound)
+            {
+                throw new InvalidOperationException("Credit line patch target f172_list_msg_etc.scb was not found.");
+            }
+
+            if (!result.TargetMsgFound)
+            {
+                throw new InvalidOperationException("Credit line patch target MSG m0377 was not found.");
+            }
+
+            if (result.StringsPatched == 0 && !result.AlreadyPatched)
+            {
+                throw new InvalidOperationException("Credit line patch did not change MSG m0377.");
+            }
+        }
+
+        private static string FormatCreditLineSummary(CreditLinePatchResult result)
+        {
+            if (result == null)
+            {
+                return String.Empty;
+            }
+
+            if (result.StringsPatched > 0)
+            {
+                return ", \ud06c\ub808\ub527 1\uac1c \ubc18\uc601";
+            }
+
+            if (result.AlreadyPatched)
+            {
+                return ", \ud06c\ub808\ub527 \uc774\ubbf8 \uc801\uc6a9";
+            }
+
+            return String.Empty;
         }
 
         private static string FormatCommunicationPerfectSummary(CommunicationPerfectPatchResult result)
