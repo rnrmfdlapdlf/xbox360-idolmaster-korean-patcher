@@ -10,11 +10,14 @@ namespace ImasKoreanPatcher
 {
     public sealed class MainForm : Form
     {
+        private static readonly bool ShowCommunicationPerfectCheat = false;
+
         private Panel dropPanel;
         private Label dropTitleLabel;
         private Label dropHintLabel;
         private CheckBox doubleAuditionFansCheckBox;
         private CheckBox ensureAuditionPassCountCheckBox;
+        private CheckBox communicationPerfectCheckBox;
         private Button patchButton;
         private ProgressBar progressBar;
         private TextBox statusTextBox;
@@ -168,13 +171,14 @@ namespace ImasKoreanPatcher
 
             TableLayoutPanel layout = new TableLayoutPanel();
             layout.ColumnCount = 1;
-            layout.RowCount = 5;
+            layout.RowCount = 6;
             layout.Dock = DockStyle.Fill;
             layout.BackColor = BackColor;
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 8F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, ShowCommunicationPerfectCheat ? 34F : 0F));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             panel.Controls.Add(layout);
 
@@ -202,6 +206,16 @@ namespace ImasKoreanPatcher
             ensureAuditionPassCountCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
             ensureAuditionPassCountCheckBox.Margin = new Padding(0);
             layout.Controls.Add(ensureAuditionPassCountCheckBox, 0, 3);
+
+            communicationPerfectCheckBox = new CheckBox();
+            communicationPerfectCheckBox.Anchor = AnchorStyles.Left;
+            communicationPerfectCheckBox.AutoSize = true;
+            communicationPerfectCheckBox.Text = "\uc601\uc5c5 \uc120\ud0dd\uc9c0 \ud56d\uc0c1 \ud37c\ud399\ud2b8";
+            communicationPerfectCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
+            communicationPerfectCheckBox.Margin = new Padding(0);
+            communicationPerfectCheckBox.Visible = ShowCommunicationPerfectCheat;
+            communicationPerfectCheckBox.TabStop = ShowCommunicationPerfectCheat;
+            layout.Controls.Add(communicationPerfectCheckBox, 0, 4);
 
             return panel;
         }
@@ -327,9 +341,11 @@ namespace ImasKoreanPatcher
             string isoPath = selectedIsoPath;
             bool doubleAuditionFans = doubleAuditionFansCheckBox != null && doubleAuditionFansCheckBox.Checked;
             bool ensureAuditionPassCount = ensureAuditionPassCountCheckBox != null && ensureAuditionPassCountCheckBox.Checked;
+            bool communicationPerfect = ShowCommunicationPerfectCheat && communicationPerfectCheckBox != null && communicationPerfectCheckBox.Checked;
             patchButton.Enabled = false;
             doubleAuditionFansCheckBox.Enabled = false;
             ensureAuditionPassCountCheckBox.Enabled = false;
+            communicationPerfectCheckBox.Enabled = false;
             dropPanel.Enabled = false;
             progressBar.Value = 0;
             SetStatus("\ud328\uce58 \uc2e4\ud589 \uc911...");
@@ -338,7 +354,7 @@ namespace ImasKoreanPatcher
             patchWorker.WorkerReportsProgress = true;
             patchWorker.DoWork += delegate(object workerSender, DoWorkEventArgs workerArgs)
             {
-                RunIsoRoundTrip((BackgroundWorker)workerSender, isoPath, doubleAuditionFans, ensureAuditionPassCount);
+                RunIsoRoundTrip((BackgroundWorker)workerSender, isoPath, doubleAuditionFans, ensureAuditionPassCount, communicationPerfect);
             };
             patchWorker.ProgressChanged += delegate(object workerSender, ProgressChangedEventArgs progressArgs)
             {
@@ -354,6 +370,7 @@ namespace ImasKoreanPatcher
                 patchButton.Enabled = !String.IsNullOrEmpty(selectedIsoPath);
                 doubleAuditionFansCheckBox.Enabled = true;
                 ensureAuditionPassCountCheckBox.Enabled = true;
+                communicationPerfectCheckBox.Enabled = true;
                 if (completedArgs.Error != null)
                 {
                     SetStatus("\uc624\ub958: " + completedArgs.Error.Message);
@@ -367,7 +384,8 @@ namespace ImasKoreanPatcher
             BackgroundWorker worker,
             string isoPath,
             bool doubleAuditionFans,
-            bool ensureAuditionPassCount)
+            bool ensureAuditionPassCount,
+            bool communicationPerfect)
         {
             Report(worker, 8, "\uc785\ub825 ISO \ud655\uc778 \uc911...");
             if (!File.Exists(isoPath))
@@ -452,6 +470,44 @@ namespace ImasKoreanPatcher
             if (patchResult.MsgEntriesPatched == 0)
             {
                 throw new InvalidOperationException("\ubc18\uc601\ub41c \ubc88\uc5ed \ubb38\uc790\uc5f4\uc774 0\uac1c\uc785\ub2c8\ub2e4.");
+            }
+
+            CommunicationPerfectPatchResult communicationPerfectResult = null;
+            if (communicationPerfect)
+            {
+                CommunicationPerfectPatcher communicationPatcher = CommunicationPerfectPatcher.Load(assetRoot);
+                communicationPerfectResult = communicationPatcher.PatchExtractedRoot(
+                    extractRoot,
+                    delegate(int percent, string message)
+                    {
+                        Report(worker, percent, message);
+                    });
+
+                if (communicationPerfectResult.ManifestRows > 0 && communicationPerfectResult.ScbEntriesSeen == 0)
+                {
+                    throw new InvalidOperationException("\uc601\uc5c5 \uc120\ud0dd\uc9c0 \ud37c\ud399\ud2b8 \ud328\uce58 \ub300\uc0c1\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.");
+                }
+
+                if (communicationPerfectResult.ScoreValuesPatched == 0 && communicationPerfectResult.ScoreValuesAlreadyPerfect == 0)
+                {
+                    throw new InvalidOperationException("\uc601\uc5c5 \uc120\ud0dd\uc9c0 \ud37c\ud399\ud2b8\uc5d0 \ubc18\uc601\ub41c \uc810\uc218\uac00 0\uac1c\uc785\ub2c8\ub2e4.");
+                }
+
+                if (communicationPerfectResult.MissingBnaFiles > 0 ||
+                    communicationPerfectResult.MissingScbEntries > 0 ||
+                    communicationPerfectResult.ScoreMismatches > 0 ||
+                    communicationPerfectResult.InvalidRows > 0 ||
+                    communicationPerfectResult.Errors > 0)
+                {
+                    throw new InvalidOperationException(
+                        String.Format(
+                            "\uc601\uc5c5 \uc120\ud0dd\uc9c0 \ud37c\ud399\ud2b8 \ud328\uce58 \uc911 \ub204\ub77d/\uc624\ub958\uac00 \uc788\uc2b5\ub2c8\ub2e4. BNA {0:N0}, SCB {1:N0}, Mismatch {2:N0}, Invalid {3:N0}, Errors {4:N0}",
+                            communicationPerfectResult.MissingBnaFiles,
+                            communicationPerfectResult.MissingScbEntries,
+                            communicationPerfectResult.ScoreMismatches,
+                            communicationPerfectResult.InvalidRows,
+                            communicationPerfectResult.Errors));
+                }
             }
 
             BxrTextPatcher bxrPatcher = new BxrTextPatcher(bxrTranslations, remapper);
@@ -561,13 +617,34 @@ namespace ImasKoreanPatcher
                 worker,
                 100,
                 String.Format(
-                    "\uc644\ub8cc: BNA {0:N0}\uac1c, BXR {1:N0}\uac1c, \uc774\ubbf8\uc9c0 {2:N0}\uac1c, XEX {3:N0}\uac1c \ubb38\uc790\uc5f4 \ubc18\uc601{4}, {5}",
+                    "\uc644\ub8cc: BNA {0:N0}\uac1c, BXR {1:N0}\uac1c, \uc774\ubbf8\uc9c0 {2:N0}\uac1c, XEX {3:N0}\uac1c \ubb38\uc790\uc5f4 \ubc18\uc601{4}{5}, {6}",
                     patchResult.MsgEntriesPatched,
                     bxrResult.StringsPatched,
                     imageTexturesChanged,
                     xexResult.StringsPatched,
+                    FormatCommunicationPerfectSummary(communicationPerfectResult),
                     FormatAuditionFanSummary(auditionFanResult),
                     outputIso));
+        }
+
+        private static string FormatCommunicationPerfectSummary(CommunicationPerfectPatchResult result)
+        {
+            if (result == null)
+            {
+                return String.Empty;
+            }
+
+            if (result.ScoreValuesPatched > 0)
+            {
+                return String.Format(", \uc601\uc5c5 \ud37c\ud399\ud2b8 {0:N0}\uac1c \ubc18\uc601", result.ScoreValuesPatched);
+            }
+
+            if (result.ScoreValuesAlreadyPerfect > 0)
+            {
+                return String.Format(", \uc601\uc5c5 \ud37c\ud399\ud2b8 \uc774\ubbf8 \uc801\uc6a9 {0:N0}\uac1c", result.ScoreValuesAlreadyPerfect);
+            }
+
+            return String.Empty;
         }
 
         private static string FormatAuditionFanSummary(AuditionFanPatchResult result)
