@@ -591,6 +591,24 @@ namespace ImasKoreanPatcher
                         imageResult.Errors));
             }
 
+            BootLogoInfoPatchResult bootLogoInfoResult = BootLogoInfoPatcher.PatchExtractedRoot(
+                extractRoot,
+                assetRoot,
+                delegate(int percent, string message)
+                {
+                    Report(worker, percent, message);
+                });
+
+            if (!bootLogoInfoResult.TargetBnaFound)
+            {
+                throw new InvalidOperationException("Boot logo patch target boot.bna was not found.");
+            }
+
+            if (!bootLogoInfoResult.TargetEntryFound)
+            {
+                throw new InvalidOperationException("Boot logo patch target logo entries were not found.");
+            }
+
             XexTextPatcher xexPatcher = new XexTextPatcher(defaultXexTranslations, remapper);
             XexPatchResult xexResult = xexPatcher.PatchExtractedRoot(
                 extractRoot,
@@ -637,7 +655,7 @@ namespace ImasKoreanPatcher
                     imageTexturesChanged,
                     xexResult.StringsPatched,
                     FormatCreditLineSummary(creditLineResult),
-                    FormatCommunicationPerfectSummary(communicationPerfectResult) + FormatAuditionFanSummary(auditionFanResult),
+                    FormatBootLogoInfoSummary(bootLogoInfoResult) + FormatCommunicationPerfectSummary(communicationPerfectResult) + FormatAuditionFanSummary(auditionFanResult),
                     outputIso));
         }
 
@@ -704,6 +722,26 @@ namespace ImasKoreanPatcher
             if (result.ScoreValuesAlreadyPerfect > 0)
             {
                 return String.Format(", \uc601\uc5c5 \ud37c\ud399\ud2b8 \uc774\ubbf8 \uc801\uc6a9 {0:N0}\uac1c", result.ScoreValuesAlreadyPerfect);
+            }
+
+            return String.Empty;
+        }
+
+        private static string FormatBootLogoInfoSummary(BootLogoInfoPatchResult result)
+        {
+            if (result == null)
+            {
+                return String.Empty;
+            }
+
+            if (result.Changed)
+            {
+                return ", \ubd80\ud2b8 \ub85c\uace0 " + result.VersionText + " \ubc18\uc601";
+            }
+
+            if (result.AlreadyPatched)
+            {
+                return ", \ubd80\ud2b8 \ub85c\uace0 " + result.VersionText + " \uc774\ubbf8 \uc801\uc6a9";
             }
 
             return String.Empty;

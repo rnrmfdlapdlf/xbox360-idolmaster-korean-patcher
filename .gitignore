@@ -2,6 +2,7 @@ bin/
 obj/
 .vs/
 Assets/
+docs/
 AGENTS.md
 README.md
 THIRD_PARTY_NOTICES.txt

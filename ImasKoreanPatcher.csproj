@@ -26,7 +26,7 @@
     <PlatformTarget>x86</PlatformTarget>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
+    <DebugType>none</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
@@ -50,6 +50,7 @@
     <Compile Include="CreditLinePatchResult.cs" />
     <Compile Include="CreditLinePatcher.cs" />
     <Compile Include="AlphaBitmap.cs" />
+    <Compile Include="BootLogoInfoPatcher.cs" />
     <Compile Include="Bc3Dxt3Codec.cs" />
     <Compile Include="BnaArchive.cs" />
     <Compile Include="BnaContainer.cs" />

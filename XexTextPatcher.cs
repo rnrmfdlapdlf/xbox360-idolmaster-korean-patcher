@@ -9,6 +9,34 @@ namespace ImasKoreanPatcher
     internal sealed class XexTextPatcher
     {
         private const int MaxCandidateChars = 256;
+        private static readonly byte[] BootLogoProjectHeightPattern = new byte[]
+        {
+            0x82, 0x26, 0xB3, 0x78,
+            0x82, 0x26, 0x99, 0x70,
+            0x82, 0x26, 0x99, 0x78,
+            0x43, 0x78, 0x00, 0x00,
+            0x43, 0xC2, 0x80, 0x00,
+            0xC3, 0x88, 0x00, 0x00
+        };
+        private static readonly byte[] BootLogoProjectHeight384Pattern = new byte[]
+        {
+            0x82, 0x26, 0xB3, 0x78,
+            0x82, 0x26, 0x99, 0x70,
+            0x82, 0x26, 0x99, 0x78,
+            0x43, 0xC0, 0x00, 0x00,
+            0x43, 0xC2, 0x80, 0x00,
+            0xC3, 0x88, 0x00, 0x00
+        };
+        private static readonly byte[] BootLogoProjectHeight512Pattern = new byte[]
+        {
+            0x82, 0x26, 0xB3, 0x78,
+            0x82, 0x26, 0x99, 0x70,
+            0x82, 0x26, 0x99, 0x78,
+            0x44, 0x00, 0x00, 0x00,
+            0x43, 0xC2, 0x80, 0x00,
+            0xC3, 0x88, 0x00, 0x00
+        };
+        private static readonly byte[] BootLogoProjectHeight512 = new byte[] { 0x44, 0x00, 0x00, 0x00 };
 
         private readonly Dictionary<string, string> translations;
         private readonly HangulRemapper remapper;
@@ -60,6 +88,7 @@ namespace ImasKoreanPatcher
             int originalSize = checked((int)new FileInfo(defaultXexPath).Length);
             Report(progress, 78, "default.xex 문자열 패치 중...");
             PatchUtf16BeStrings(data, result);
+            PatchBootLogoProjectHeight(data, result);
 
             if (result.StringsPatched == 0)
             {
@@ -81,6 +110,58 @@ namespace ImasKoreanPatcher
             File.WriteAllBytes(defaultXexPath, data);
             Report(progress, 80, String.Format("default.xex 패치 완료: {0:N0}개 문자열", result.StringsPatched));
             return result;
+        }
+
+        private static void PatchBootLogoProjectHeight(byte[] data, XexPatchResult result)
+        {
+            int offset = FindPattern(data, BootLogoProjectHeightPattern);
+            if (offset >= 0)
+            {
+                Buffer.BlockCopy(BootLogoProjectHeight512, 0, data, offset + 12, BootLogoProjectHeight512.Length);
+                result.BootLogoLayoutPatched++;
+                return;
+            }
+
+            offset = FindPattern(data, BootLogoProjectHeight384Pattern);
+            if (offset >= 0)
+            {
+                Buffer.BlockCopy(BootLogoProjectHeight512, 0, data, offset + 12, BootLogoProjectHeight512.Length);
+                result.BootLogoLayoutPatched++;
+                return;
+            }
+
+            if (FindPattern(data, BootLogoProjectHeight512Pattern) >= 0)
+            {
+                result.BootLogoLayoutAlreadyPatched++;
+            }
+        }
+
+        private static int FindPattern(byte[] data, byte[] pattern)
+        {
+            if (pattern.Length == 0 || data.Length < pattern.Length)
+            {
+                return -1;
+            }
+
+            for (int offset = 0; offset <= data.Length - pattern.Length; offset++)
+            {
+                bool matched = true;
+                for (int index = 0; index < pattern.Length; index++)
+                {
+                    if (data[offset + index] != pattern[index])
+                    {
+                        matched = false;
+                        break;
+                    }
+                }
+
+                if (matched)
+                {
+                    return offset;
+                }
+            }
+
+            return -1;
         }
 
         private void PatchUtf16BeStrings(byte[] data, XexPatchResult result)
