@@ -4,7 +4,6 @@ obj/
 Assets/
 docs/
 AGENTS.md
-README.md
 THIRD_PARTY_NOTICES.txt
 *.user
 *.suo
