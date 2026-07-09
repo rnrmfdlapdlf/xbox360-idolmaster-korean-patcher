@@ -1,8 +1,15 @@
-# 아이돌마스터 XBOX 360 한글 패치
+# 아이돌마스터 XBOX 360 한글 패치 (AI 번역)
 
 ## 개요
 
 XBOX 360으로 발매된 THE iDOLM@STER의 한글패치를 제공하는 프로그램입니다.
+
+## 샘플 이미지
+![Sample 1](samples/sample1.jpg)
+
+![Sample 2](samples/sample2.jpg)
+
+![Sample 3](samples/sample3.jpg)
 
 ## 지원되는 기능
 * 대부분의 일본어 텍스트 및 일본어 이미지 한글로 교체
@@ -26,4 +33,4 @@ XBOX 360으로 발매된 THE iDOLM@STER의 한글패치를 제공하는 프로�
 * 레슨의 임시휴업/성공/실패 등 배경에 그라데이션이 들어간 버튼
 * 기타 발견하지 못한 이미지들
 
-Build with GPT-5.5
+Build with GPT-5.5 · Translated with Gemma 4 & Gemini
