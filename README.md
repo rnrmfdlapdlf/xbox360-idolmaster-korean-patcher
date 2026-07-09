@@ -33,4 +33,7 @@ XBOX 360으로 발매된 THE iDOLM@STER의 한글패치를 제공하는 프로�
 * 레슨의 임시휴업/성공/실패 등 배경에 그라데이션이 들어간 버튼
 * 기타 발견하지 못한 이미지들
 
+## 다운로드
+**[릴리즈 페이지](../../releases)** 에서 다운로드하세요.
+
 Build with GPT-5.5 · Translated with Gemma 4 & Gemini
