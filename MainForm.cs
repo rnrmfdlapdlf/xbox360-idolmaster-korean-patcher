@@ -493,6 +493,7 @@ namespace ImasKoreanPatcher
 
             bool workerBusy = patchWorker != null && patchWorker.IsBusy;
             bool hasXexTool = IsXexToolPath(selectedXexToolPath);
+            bool hasTitleUpdate = IsTitleUpdatePath(selectedTitleUpdatePath);
             if (translateXexCheckBox != null)
             {
                 translateXexCheckBox.Enabled = hasXexTool && !workerBusy;
@@ -504,8 +505,8 @@ namespace ImasKoreanPatcher
 
             if (applyTitleUpdateCheckBox != null)
             {
-                applyTitleUpdateCheckBox.Enabled = hasXexTool && !workerBusy;
-                if (!hasXexTool)
+                applyTitleUpdateCheckBox.Enabled = hasXexTool && hasTitleUpdate && !workerBusy;
+                if (!hasXexTool || !hasTitleUpdate)
                 {
                     applyTitleUpdateCheckBox.Checked = false;
                 }

@@ -6,6 +6,7 @@ namespace ImasKoreanPatcher
         public int CandidateStringsScanned;
         public int StringsMatched;
         public int StringsPatched;
+        public int RelocatedStringsPatched;
         public int BootLogoLayoutPatched;
         public int BootLogoLayoutAlreadyPatched;
         public int ReplacementsTooLong;

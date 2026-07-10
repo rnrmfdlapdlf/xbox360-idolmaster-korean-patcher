@@ -9,6 +9,23 @@ namespace ImasKoreanPatcher
     internal sealed class XexTextPatcher
     {
         private const int MaxCandidateChars = 256;
+        private const string MakotoTextId = "jp_e756c6ef2a8e66f5";
+        private static readonly byte[] MakotoPointerCodePrefix = new byte[]
+        {
+            0x3D, 0x60,
+        };
+        private static readonly byte[] MakotoPointerCodeMiddle = new byte[]
+        {
+            0x7C, 0x7B, 0x1B, 0x78,
+            0x3B, 0xAB,
+        };
+        private static readonly byte[] MakotoCaveAnchorPattern = new byte[]
+        {
+            0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x20, 0x48, 0x11,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x1A, 0xE0, 0x00, 0x00, 0x00, 0x00, 0x02, 0x57,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00,
+        };
         private static readonly byte[] BootLogoProjectHeightPattern = new byte[]
         {
             0x82, 0x26, 0xB3, 0x78,
@@ -191,6 +208,15 @@ namespace ImasKoreanPatcher
                 int payloadLength = encoded.Length + 2;
                 if (payloadLength > candidate.SlotBytes)
                 {
+                    if (String.Equals(textId, MakotoTextId, StringComparison.Ordinal))
+                    {
+                        PatchRelocatedMakotoString(data, offset, encoded);
+                        patchedRanges.Add(new PatchedRange(offset, candidate.EndOffset));
+                        result.StringsPatched++;
+                        result.RelocatedStringsPatched++;
+                        continue;
+                    }
+
                     result.ReplacementsTooLong++;
                     continue;
                 }
@@ -200,6 +226,176 @@ namespace ImasKoreanPatcher
                 patchedRanges.Add(new PatchedRange(offset, offset + candidate.SlotBytes));
                 result.StringsPatched++;
             }
+        }
+
+        private static void PatchRelocatedMakotoString(byte[] data, int originalStringOffset, byte[] encoded)
+        {
+            byte[] payload = new byte[encoded.Length + 2];
+            Buffer.BlockCopy(encoded, 0, payload, 0, encoded.Length);
+
+            int caveAnchorOffset = FindUniquePattern(data, MakotoCaveAnchorPattern, "Makoto relocation cave anchor");
+            int relocatedStringOffset = caveAnchorOffset + MakotoCaveAnchorPattern.Length;
+            if (relocatedStringOffset < 0 || relocatedStringOffset + payload.Length > data.Length)
+            {
+                throw new InvalidDataException("Makoto relocation string would be outside default.xex.");
+            }
+
+            for (int index = 0; index < payload.Length; index++)
+            {
+                if (data[relocatedStringOffset + index] != 0)
+                {
+                    throw new InvalidDataException("Makoto relocation cave is not empty in default.xex.");
+                }
+            }
+
+            uint originalRuntimeAddress = FileOffsetToRuntimeAddress(data, originalStringOffset);
+            byte[] pointerPattern = BuildMakotoPointerPattern(originalRuntimeAddress);
+            int pointerCodeOffset = FindUniquePattern(data, pointerPattern, "Makoto string pointer code");
+            uint relocatedRuntimeAddress = FileOffsetToRuntimeAddress(data, relocatedStringOffset);
+
+            Buffer.BlockCopy(payload, 0, data, relocatedStringOffset, payload.Length);
+            PatchLisAddiAddress(data, pointerCodeOffset, relocatedRuntimeAddress);
+        }
+
+        private static byte[] BuildMakotoPointerPattern(uint runtimeAddress)
+        {
+            ushort high = (ushort)((runtimeAddress + 0x8000u) >> 16);
+            ushort low = (ushort)(runtimeAddress & 0xFFFFu);
+            byte[] pattern = new byte[12];
+            Buffer.BlockCopy(MakotoPointerCodePrefix, 0, pattern, 0, MakotoPointerCodePrefix.Length);
+            WriteU16Be(pattern, 2, high);
+            Buffer.BlockCopy(MakotoPointerCodeMiddle, 0, pattern, 4, MakotoPointerCodeMiddle.Length);
+            WriteU16Be(pattern, 10, low);
+            return pattern;
+        }
+
+        private static void PatchLisAddiAddress(byte[] data, int offset, uint runtimeAddress)
+        {
+            ushort high = (ushort)((runtimeAddress + 0x8000u) >> 16);
+            ushort low = (ushort)(runtimeAddress & 0xFFFFu);
+            WriteU16Be(data, offset + 2, high);
+            WriteU16Be(data, offset + 10, low);
+        }
+
+        private static uint FileOffsetToRuntimeAddress(byte[] data, int fileOffset)
+        {
+            int imageOffset = FindEmbeddedPeImageOffset(data);
+            int peOffset = imageOffset + ReadI32Le(data, imageOffset + 0x3C);
+            int sectionCount = ReadU16Le(data, peOffset + 6);
+            int optionalHeaderSize = ReadU16Le(data, peOffset + 20);
+            int optionalHeaderOffset = peOffset + 24;
+            if (ReadU16Le(data, optionalHeaderOffset) != 0x10B)
+            {
+                throw new InvalidDataException("Embedded default.xex image is not PE32.");
+            }
+
+            uint imageBase = ReadU32Le(data, optionalHeaderOffset + 28);
+            int sectionOffset = optionalHeaderOffset + optionalHeaderSize;
+            for (int index = 0; index < sectionCount; index++)
+            {
+                int current = sectionOffset + index * 40;
+                uint virtualAddress = ReadU32Le(data, current + 12);
+                uint rawSize = ReadU32Le(data, current + 16);
+                uint rawPointer = ReadU32Le(data, current + 20);
+                long rawStart = imageOffset + rawPointer;
+                long rawEnd = rawStart + rawSize;
+                if (fileOffset >= rawStart && fileOffset < rawEnd)
+                {
+                    uint sectionOffsetInFile = (uint)(fileOffset - rawStart);
+                    return imageBase + virtualAddress + sectionOffsetInFile;
+                }
+            }
+
+            throw new InvalidDataException("Could not map default.xex file offset to a runtime address.");
+        }
+
+        private static int FindEmbeddedPeImageOffset(byte[] data)
+        {
+            for (int offset = 0; offset + 0x40 <= data.Length && offset <= 0x10000; offset += 0x200)
+            {
+                if (data[offset] != 0x4D || data[offset + 1] != 0x5A)
+                {
+                    continue;
+                }
+
+                int peRelativeOffset = ReadI32Le(data, offset + 0x3C);
+                int peOffset = offset + peRelativeOffset;
+                if (peRelativeOffset >= 0
+                    && peOffset >= offset
+                    && peOffset + 4 <= data.Length
+                    && data[peOffset] == 0x50
+                    && data[peOffset + 1] == 0x45
+                    && data[peOffset + 2] == 0
+                    && data[peOffset + 3] == 0)
+                {
+                    return offset;
+                }
+            }
+
+            throw new InvalidDataException("Could not find the embedded PE image in default.xex.");
+        }
+
+        private static int FindUniquePattern(byte[] data, byte[] pattern, string label)
+        {
+            int found = FindPattern(data, pattern);
+            if (found < 0)
+            {
+                throw new InvalidDataException(label + " was not found in default.xex.");
+            }
+
+            for (int offset = found + 1; offset <= data.Length - pattern.Length; offset++)
+            {
+                bool matched = true;
+                for (int index = 0; index < pattern.Length; index++)
+                {
+                    if (data[offset + index] != pattern[index])
+                    {
+                        matched = false;
+                        break;
+                    }
+                }
+
+                if (matched)
+                {
+                    throw new InvalidDataException(label + " is not unique in default.xex.");
+                }
+            }
+
+            return found;
+        }
+
+        private static int ReadU16Le(byte[] data, int offset)
+        {
+            if (offset < 0 || offset + 2 > data.Length)
+            {
+                throw new InvalidDataException("Unexpected end of default.xex while reading PE metadata.");
+            }
+
+            return data[offset] | (data[offset + 1] << 8);
+        }
+
+        private static int ReadI32Le(byte[] data, int offset)
+        {
+            return unchecked((int)ReadU32Le(data, offset));
+        }
+
+        private static uint ReadU32Le(byte[] data, int offset)
+        {
+            if (offset < 0 || offset + 4 > data.Length)
+            {
+                throw new InvalidDataException("Unexpected end of default.xex while reading PE metadata.");
+            }
+
+            return (uint)(data[offset]
+                | (data[offset + 1] << 8)
+                | (data[offset + 2] << 16)
+                | (data[offset + 3] << 24));
+        }
+
+        private static void WriteU16Be(byte[] data, int offset, ushort value)
+        {
+            data[offset] = (byte)(value >> 8);
+            data[offset + 1] = (byte)value;
         }
 
         private static bool TryReadCandidate(byte[] data, int offset, out CandidateString candidate)
