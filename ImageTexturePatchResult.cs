@@ -3,6 +3,7 @@ namespace ImasKoreanPatcher
     internal sealed class ImageTexturePatchResult
     {
         public int ManifestRows;
+        public int CategoriesSeen;
         public int BnaFilesPatched;
         public int EntriesPatched;
         public int EntriesAdded;

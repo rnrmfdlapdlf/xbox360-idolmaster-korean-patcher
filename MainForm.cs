@@ -15,6 +15,11 @@ namespace ImasKoreanPatcher
         private Panel dropPanel;
         private Label dropTitleLabel;
         private Label dropHintLabel;
+        private Label isoStatusLabel;
+        private Label xexToolStatusLabel;
+        private Label titleUpdateStatusLabel;
+        private CheckBox translateXexCheckBox;
+        private CheckBox applyTitleUpdateCheckBox;
         private CheckBox doubleAuditionFansCheckBox;
         private CheckBox ensureAuditionPassCountCheckBox;
         private CheckBox communicationPerfectCheckBox;
@@ -23,15 +28,17 @@ namespace ImasKoreanPatcher
         private TextBox statusTextBox;
 
         private string selectedIsoPath;
+        private string selectedXexToolPath;
+        private string selectedTitleUpdatePath;
         private BackgroundWorker patchWorker;
 
         public MainForm()
         {
-            Text = "\uc544\uc774\ub3cc\ub9c8\uc2a4\ud130 \ud55c\uae00 \ud328\uce58";
+            Text = "아이돌마스터 한글 패치";
             Font = new Font("Malgun Gothic", 9F, FontStyle.Regular, GraphicsUnit.Point);
             BackColor = Color.FromArgb(246, 247, 250);
-            MinimumSize = new Size(720, 360);
-            Size = new Size(840, 420);
+            MinimumSize = new Size(980, 520);
+            Size = new Size(1080, 580);
             StartPosition = FormStartPosition.CenterScreen;
             AllowDrop = true;
 
@@ -41,11 +48,11 @@ namespace ImasKoreanPatcher
             root.Dock = DockStyle.Fill;
             root.Padding = new Padding(18);
             root.BackColor = BackColor;
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42F));
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 1F));
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 39F));
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 1F));
-            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 38F));
-            root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 1F));
-            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 23F));
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 19F));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 28F));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
@@ -56,8 +63,8 @@ namespace ImasKoreanPatcher
 
             root.Controls.Add(BuildVerticalSeparator(), 1, 0);
 
-            Panel cheatPanel = BuildCheatPanel();
-            root.Controls.Add(cheatPanel, 2, 0);
+            Panel optionsPanel = BuildOptionsPanel();
+            root.Controls.Add(optionsPanel, 2, 0);
 
             root.Controls.Add(BuildVerticalSeparator(), 3, 0);
 
@@ -81,12 +88,13 @@ namespace ImasKoreanPatcher
             statusTextBox.ReadOnly = true;
             statusTextBox.ShortcutsEnabled = true;
             statusTextBox.TabStop = true;
-            statusTextBox.Text = "\ub300\uae30 \uc911";
+            statusTextBox.Text = "대기 중";
             root.Controls.Add(statusTextBox, 0, 2);
             root.SetColumnSpan(statusTextBox, 5);
 
             DragEnter += OnDragEnter;
             DragDrop += OnDragDrop;
+            UpdateFileStatusDisplay();
         }
 
         private Panel BuildDropPanel()
@@ -101,56 +109,74 @@ namespace ImasKoreanPatcher
 
             TableLayoutPanel inner = new TableLayoutPanel();
             inner.ColumnCount = 1;
-            inner.RowCount = 3;
+            inner.RowCount = 7;
             inner.Dock = DockStyle.Fill;
             inner.Padding = new Padding(22);
             inner.BackColor = Color.White;
-            inner.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
-            inner.RowStyles.Add(new RowStyle(SizeType.Absolute, 86F));
-            inner.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            inner.RowStyles.Add(new RowStyle(SizeType.Absolute, 38F));
+            inner.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
+            inner.RowStyles.Add(new RowStyle(SizeType.Absolute, 20F));
+            inner.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
+            inner.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
+            inner.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
+            inner.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             panel.Controls.Add(inner);
-
-            TableLayoutPanel center = new TableLayoutPanel();
-            center.ColumnCount = 1;
-            center.RowCount = 2;
-            center.Dock = DockStyle.Fill;
-            center.BackColor = Color.White;
-            center.RowStyles.Add(new RowStyle(SizeType.Absolute, 54F));
-            center.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
-            inner.Controls.Add(center, 0, 1);
 
             dropTitleLabel = new Label();
             dropTitleLabel.Dock = DockStyle.Fill;
-            dropTitleLabel.TextAlign = ContentAlignment.MiddleCenter;
-            dropTitleLabel.Font = new Font(Font.FontFamily, 12F, FontStyle.Bold, GraphicsUnit.Point);
+            dropTitleLabel.TextAlign = ContentAlignment.MiddleLeft;
+            dropTitleLabel.Font = new Font(Font.FontFamily, 11F, FontStyle.Bold, GraphicsUnit.Point);
             dropTitleLabel.ForeColor = Color.FromArgb(34, 42, 54);
             dropTitleLabel.AutoSize = false;
             dropTitleLabel.UseMnemonic = false;
-            dropTitleLabel.Text = "\uc6d0\ubcf8 ISO\ub97c \uc5ec\uae30\uc5d0\r\n\ub4dc\ub798\uadf8 & \ub4dc\ub86d";
-            center.Controls.Add(dropTitleLabel, 0, 0);
+            dropTitleLabel.Text = "ISO 및 관련 파일을 여기에 드래그 & 드롭";
+            inner.Controls.Add(dropTitleLabel, 0, 0);
 
             dropHintLabel = new Label();
             dropHintLabel.Dock = DockStyle.Fill;
-            dropHintLabel.TextAlign = ContentAlignment.TopCenter;
+            dropHintLabel.TextAlign = ContentAlignment.TopLeft;
             dropHintLabel.AutoEllipsis = true;
             dropHintLabel.UseMnemonic = false;
             dropHintLabel.ForeColor = Color.FromArgb(92, 101, 116);
-            dropHintLabel.Text = "\ud074\ub9ad\ud574\uc11c ISO \ud30c\uc77c \uc120\ud0dd";
-            center.Controls.Add(dropHintLabel, 0, 1);
+            dropHintLabel.Text = "또는 클릭해서 파일 선택";
+            inner.Controls.Add(dropHintLabel, 0, 1);
 
-            panel.Click += OnDropPanelClick;
-            inner.Click += OnDropPanelClick;
-            center.Click += OnDropPanelClick;
-            dropTitleLabel.Click += OnDropPanelClick;
-            dropHintLabel.Click += OnDropPanelClick;
-            panel.DragEnter += OnDragEnter;
-            panel.DragDrop += OnDragDrop;
-            inner.DragEnter += OnDragEnter;
-            inner.DragDrop += OnDragDrop;
-            center.DragEnter += OnDragEnter;
-            center.DragDrop += OnDragDrop;
+            isoStatusLabel = CreateFileStatusLabel();
+            inner.Controls.Add(isoStatusLabel, 0, 3);
+
+            xexToolStatusLabel = CreateFileStatusLabel();
+            inner.Controls.Add(xexToolStatusLabel, 0, 4);
+
+            titleUpdateStatusLabel = CreateFileStatusLabel();
+            inner.Controls.Add(titleUpdateStatusLabel, 0, 5);
+
+            AttachDropPanelHandlers(panel);
 
             return panel;
+        }
+
+        private Label CreateFileStatusLabel()
+        {
+            Label label = new Label();
+            label.Dock = DockStyle.Fill;
+            label.TextAlign = ContentAlignment.MiddleLeft;
+            label.AutoEllipsis = true;
+            label.UseMnemonic = false;
+            label.Font = new Font(Font.FontFamily, 9F, FontStyle.Bold, GraphicsUnit.Point);
+            label.Margin = new Padding(0);
+            return label;
+        }
+
+        private void AttachDropPanelHandlers(Control control)
+        {
+            control.AllowDrop = true;
+            control.Click += OnDropPanelClick;
+            control.DragEnter += OnDragEnter;
+            control.DragDrop += OnDragDrop;
+            foreach (Control child in control.Controls)
+            {
+                AttachDropPanelHandlers(child);
+            }
         }
 
         private Panel BuildVerticalSeparator()
@@ -162,7 +188,7 @@ namespace ImasKoreanPatcher
             return separator;
         }
 
-        private Panel BuildCheatPanel()
+        private Panel BuildOptionsPanel()
         {
             Panel panel = new Panel();
             panel.BackColor = BackColor;
@@ -171,53 +197,109 @@ namespace ImasKoreanPatcher
 
             TableLayoutPanel layout = new TableLayoutPanel();
             layout.ColumnCount = 1;
-            layout.RowCount = 6;
+            layout.RowCount = 12;
             layout.Dock = DockStyle.Fill;
             layout.BackColor = BackColor;
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 8F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 16F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, ShowCommunicationPerfectCheat ? 34F : 0F));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             panel.Controls.Add(layout);
 
+            Label patchOptionsLabel = new Label();
+            patchOptionsLabel.Dock = DockStyle.Fill;
+            patchOptionsLabel.Text = "패치 옵션 (xextool.exe 필요)";
+            patchOptionsLabel.TextAlign = ContentAlignment.MiddleLeft;
+            patchOptionsLabel.Font = new Font(Font.FontFamily, 9F, FontStyle.Bold, GraphicsUnit.Point);
+            patchOptionsLabel.ForeColor = Color.FromArgb(34, 42, 54);
+            patchOptionsLabel.Margin = new Padding(0);
+            layout.Controls.Add(patchOptionsLabel, 0, 1);
+
+            translateXexCheckBox = new CheckBox();
+            translateXexCheckBox.Anchor = AnchorStyles.Left;
+            translateXexCheckBox.AutoSize = true;
+            translateXexCheckBox.Text = "xex 파일 번역";
+            translateXexCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
+            translateXexCheckBox.Margin = new Padding(0);
+            translateXexCheckBox.Enabled = false;
+            layout.Controls.Add(translateXexCheckBox, 0, 2);
+
+            Label translateXexDescription = CreateOptionDescription(
+                "- 아침 메뉴 및 회화시의 캐릭터 이름 칸 등등");
+            layout.Controls.Add(translateXexDescription, 0, 3);
+
+            applyTitleUpdateCheckBox = new CheckBox();
+            applyTitleUpdateCheckBox.Anchor = AnchorStyles.Left;
+            applyTitleUpdateCheckBox.AutoSize = true;
+            applyTitleUpdateCheckBox.Text = "타이틀 업데이트 반영";
+            applyTitleUpdateCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
+            applyTitleUpdateCheckBox.Margin = new Padding(0);
+            applyTitleUpdateCheckBox.Enabled = false;
+            layout.Controls.Add(applyTitleUpdateCheckBox, 0, 4);
+
+            Label titleUpdateDescription = CreateOptionDescription(
+                "- 타이틀 업데이트가 반영된 ISO를 생성합니다.");
+            layout.Controls.Add(titleUpdateDescription, 0, 5);
+
             Label cheatLabel = new Label();
             cheatLabel.Dock = DockStyle.Fill;
-            cheatLabel.Text = "\uce58\ud2b8";
+            cheatLabel.Text = "치트";
             cheatLabel.TextAlign = ContentAlignment.MiddleLeft;
             cheatLabel.Font = new Font(Font.FontFamily, 9F, FontStyle.Bold, GraphicsUnit.Point);
             cheatLabel.ForeColor = Color.FromArgb(34, 42, 54);
             cheatLabel.Margin = new Padding(0);
-            layout.Controls.Add(cheatLabel, 0, 1);
+            layout.Controls.Add(cheatLabel, 0, 7);
 
             doubleAuditionFansCheckBox = new CheckBox();
             doubleAuditionFansCheckBox.Anchor = AnchorStyles.Left;
             doubleAuditionFansCheckBox.AutoSize = true;
-            doubleAuditionFansCheckBox.Text = "\uc624\ub514\uc158 \ud32c \uc99d\uac00\ub7c9 2\ubc30";
+            doubleAuditionFansCheckBox.Text = "오디션의 팬 증가량 2배";
             doubleAuditionFansCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
             doubleAuditionFansCheckBox.Margin = new Padding(0);
-            layout.Controls.Add(doubleAuditionFansCheckBox, 0, 2);
+            layout.Controls.Add(doubleAuditionFansCheckBox, 0, 8);
 
             ensureAuditionPassCountCheckBox = new CheckBox();
             ensureAuditionPassCountCheckBox.Anchor = AnchorStyles.Left;
             ensureAuditionPassCountCheckBox.AutoSize = true;
-            ensureAuditionPassCountCheckBox.Text = "\uc624\ub514\uc158\uc758 \ud569\uaca9\uc790\uc218 2\uba85\uc774\uc0c1\uc73c\ub85c \ubcc0\uacbd";
+            ensureAuditionPassCountCheckBox.Text = "오디션의 합격자수 2명이상으로 변경";
             ensureAuditionPassCountCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
             ensureAuditionPassCountCheckBox.Margin = new Padding(0);
-            layout.Controls.Add(ensureAuditionPassCountCheckBox, 0, 3);
+            layout.Controls.Add(ensureAuditionPassCountCheckBox, 0, 9);
 
             communicationPerfectCheckBox = new CheckBox();
             communicationPerfectCheckBox.Anchor = AnchorStyles.Left;
             communicationPerfectCheckBox.AutoSize = true;
-            communicationPerfectCheckBox.Text = "\uc601\uc5c5 \uc120\ud0dd\uc9c0 \ud56d\uc0c1 \ud37c\ud399\ud2b8";
+            communicationPerfectCheckBox.Text = "영업 선택지 항상 퍼펙트";
             communicationPerfectCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
             communicationPerfectCheckBox.Margin = new Padding(0);
             communicationPerfectCheckBox.Visible = ShowCommunicationPerfectCheat;
             communicationPerfectCheckBox.TabStop = ShowCommunicationPerfectCheat;
-            layout.Controls.Add(communicationPerfectCheckBox, 0, 4);
+            layout.Controls.Add(communicationPerfectCheckBox, 0, 10);
 
             return panel;
+        }
+
+        private Label CreateOptionDescription(string text)
+        {
+            Label label = new Label();
+            label.Dock = DockStyle.Fill;
+            label.Text = text;
+            label.TextAlign = ContentAlignment.TopLeft;
+            label.Font = new Font(Font.FontFamily, 8F, FontStyle.Regular, GraphicsUnit.Point);
+            label.ForeColor = Color.FromArgb(104, 112, 126);
+            label.Padding = new Padding(22, 0, 0, 0);
+            label.Margin = new Padding(0);
+            label.AutoEllipsis = true;
+            label.UseMnemonic = false;
+            return label;
         }
 
         private Panel BuildPatchButtonPanel()
@@ -240,7 +322,7 @@ namespace ImasKoreanPatcher
             patchButton = new Button();
             patchButton.Anchor = AnchorStyles.None;
             patchButton.Size = new Size(166, 58);
-            patchButton.Text = "\ud55c\uae00 \ud328\uce58";
+            patchButton.Text = "한글 패치";
             patchButton.Font = new Font(Font.FontFamily, 12F, FontStyle.Bold, GraphicsUnit.Point);
             patchButton.Enabled = false;
             patchButton.Click += OnPatchButtonClick;
@@ -258,54 +340,60 @@ namespace ImasKoreanPatcher
 
             using (OpenFileDialog dialog = new OpenFileDialog())
             {
-                dialog.Title = "\uc6d0\ubcf8 ISO \ud30c\uc77c \uc120\ud0dd";
-                dialog.Filter = "ISO files (*.iso)|*.iso|All files (*.*)|*.*";
-                dialog.Multiselect = false;
+                dialog.Title = "ISO 및 관련 파일 선택";
+                dialog.Filter = "지원 파일 (*.iso; xextool.exe; TU*)|*.iso;xextool.exe;TU*;*.xexp;*.tu|ISO files (*.iso)|*.iso|xextool.exe|xextool.exe|Title Update files (TU*;*.xexp;*.tu)|TU*;*.xexp;*.tu|All files (*.*)|*.*";
+                dialog.Multiselect = true;
                 if (dialog.ShowDialog(this) == DialogResult.OK)
                 {
-                    SelectIso(dialog.FileName);
+                    SelectRelatedFiles(dialog.FileNames);
                 }
             }
         }
 
         private void OnDragEnter(object sender, DragEventArgs e)
         {
-            string path = TryGetDroppedIso(e);
-            e.Effect = path == null ? DragDropEffects.None : DragDropEffects.Copy;
+            string[] paths = TryGetDroppedFiles(e);
+            e.Effect = HasSupportedFile(paths) ? DragDropEffects.Copy : DragDropEffects.None;
         }
 
         private void OnDragDrop(object sender, DragEventArgs e)
         {
-            string path = TryGetDroppedIso(e);
-            if (path == null)
+            string[] paths = TryGetDroppedFiles(e);
+            if (!HasSupportedFile(paths))
             {
-                SetStatus("\uc120\ud0dd\ud55c \ud30c\uc77c\uc740 ISO\uac00 \uc544\ub2d9\ub2c8\ub2e4.");
+                SetStatus("지원하는 ISO, xextool.exe 또는 TU 파일을 선택해 주세요.");
                 return;
             }
 
-            SelectIso(path);
+            SelectRelatedFiles(paths);
         }
 
-        private static string TryGetDroppedIso(DragEventArgs e)
+        private static string[] TryGetDroppedFiles(DragEventArgs e)
         {
             if (!e.Data.GetDataPresent(DataFormats.FileDrop))
             {
                 return null;
             }
 
-            string[] files = e.Data.GetData(DataFormats.FileDrop) as string[];
-            if (files == null || files.Length != 1)
+            return e.Data.GetData(DataFormats.FileDrop) as string[];
+        }
+
+        private static bool HasSupportedFile(string[] paths)
+        {
+            if (paths == null)
             {
-                return null;
+                return false;
             }
 
-            string path = files[0];
-            if (!IsIsoPath(path))
+            for (int index = 0; index < paths.Length; index++)
             {
-                return null;
+                if (IsIsoPath(paths[index]) || IsXexToolPath(paths[index]) || IsTitleUpdatePath(paths[index]))
+                {
+                    return true;
+                }
             }
 
-            return path;
+            return false;
         }
 
         private static bool IsIsoPath(string path)
@@ -315,46 +403,198 @@ namespace ImasKoreanPatcher
                 && String.Equals(Path.GetExtension(path), ".iso", StringComparison.OrdinalIgnoreCase);
         }
 
-        private void SelectIso(string path)
+        private static bool IsXexToolPath(string path)
         {
-            if (!IsIsoPath(path))
+            return !String.IsNullOrEmpty(path)
+                && File.Exists(path)
+                && String.Equals(Path.GetFileName(path), "xextool.exe", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsTitleUpdatePath(string path)
+        {
+            if (String.IsNullOrEmpty(path) || !File.Exists(path) || IsIsoPath(path) || IsXexToolPath(path))
             {
-                SetStatus("ISO \ud30c\uc77c\ub9cc \uc120\ud0dd\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.");
+                return false;
+            }
+
+            string extension = Path.GetExtension(path);
+            string fileName = Path.GetFileName(path);
+            if (String.Equals(extension, ".xexp", StringComparison.OrdinalIgnoreCase)
+                || String.Equals(extension, ".tu", StringComparison.OrdinalIgnoreCase)
+                || fileName.StartsWith("TU", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            try
+            {
+                using (FileStream stream = File.OpenRead(path))
+                {
+                    byte[] magic = new byte[4];
+                    if (stream.Read(magic, 0, magic.Length) != magic.Length)
+                    {
+                        return false;
+                    }
+
+                    string signature = Encoding.ASCII.GetString(magic);
+                    return signature == "LIVE" || signature == "PIRS" || signature == "CON " || signature == "XEX2";
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void SelectRelatedFiles(string[] paths)
+        {
+            int unsupportedCount = 0;
+            for (int index = 0; index < paths.Length; index++)
+            {
+                string path = paths[index];
+                if (IsIsoPath(path))
+                {
+                    selectedIsoPath = path;
+                }
+                else if (IsXexToolPath(path))
+                {
+                    selectedXexToolPath = path;
+                }
+                else if (IsTitleUpdatePath(path))
+                {
+                    selectedTitleUpdatePath = path;
+                }
+                else
+                {
+                    unsupportedCount++;
+                }
+            }
+
+            progressBar.Value = 0;
+            UpdateFileStatusDisplay();
+            int readyCount = (IsIsoPath(selectedIsoPath) ? 1 : 0)
+                + (IsXexToolPath(selectedXexToolPath) ? 1 : 0)
+                + (IsTitleUpdatePath(selectedTitleUpdatePath) ? 1 : 0);
+            if (unsupportedCount > 0)
+            {
+                SetStatus(String.Format("파일 {0}개 준비됨, 지원하지 않는 파일 {1}개 제외", readyCount, unsupportedCount));
+            }
+            else
+            {
+                SetStatus(String.Format("파일 {0}개 준비됨", readyCount));
+            }
+        }
+
+        private void UpdateFileStatusDisplay()
+        {
+            SetFileStatus(isoStatusLabel, "(필수) 원본 ISO", selectedIsoPath, true);
+            SetFileStatus(xexToolStatusLabel, "(옵션) xextool.exe", selectedXexToolPath, false);
+            SetFileStatus(titleUpdateStatusLabel, "(옵션) TU파일", selectedTitleUpdatePath, false);
+
+            bool workerBusy = patchWorker != null && patchWorker.IsBusy;
+            bool hasXexTool = IsXexToolPath(selectedXexToolPath);
+            if (translateXexCheckBox != null)
+            {
+                translateXexCheckBox.Enabled = hasXexTool && !workerBusy;
+                if (!hasXexTool)
+                {
+                    translateXexCheckBox.Checked = false;
+                }
+            }
+
+            if (applyTitleUpdateCheckBox != null)
+            {
+                applyTitleUpdateCheckBox.Enabled = hasXexTool && !workerBusy;
+                if (!hasXexTool)
+                {
+                    applyTitleUpdateCheckBox.Checked = false;
+                }
+            }
+
+            if (patchButton != null)
+            {
+                patchButton.Enabled = IsIsoPath(selectedIsoPath) && !workerBusy;
+            }
+        }
+
+        private static void SetFileStatus(Label label, string caption, string path, bool required)
+        {
+            if (label == null)
+            {
                 return;
             }
 
-            selectedIsoPath = path;
-            patchButton.Enabled = true;
-            progressBar.Value = 0;
-            dropHintLabel.Text = Path.GetFileName(path);
-            SetStatus("ISO \uc120\ud0dd\ub428: " + path);
+            bool ready = File.Exists(path);
+            if (ready)
+            {
+                label.Text = "✅ " + caption + "  —  " + Path.GetFileName(path);
+                label.ForeColor = Color.FromArgb(28, 128, 74);
+            }
+            else if (required)
+            {
+                label.Text = "❌ " + caption;
+                label.ForeColor = Color.FromArgb(190, 55, 62);
+            }
+            else
+            {
+                label.Text = "○ " + caption;
+                label.ForeColor = Color.FromArgb(104, 112, 126);
+            }
         }
 
         private void OnPatchButtonClick(object sender, EventArgs e)
         {
             if (String.IsNullOrEmpty(selectedIsoPath))
             {
-                SetStatus("\ud328\uce58\ud560 ISO\ub97c \uba3c\uc800 \uc120\ud0dd\ud574 \uc8fc\uc138\uc694.");
+                SetStatus("패치할 ISO를 먼저 선택해 주세요.");
                 return;
             }
 
             string isoPath = selectedIsoPath;
+            string xexToolPath = selectedXexToolPath;
+            string titleUpdatePath = selectedTitleUpdatePath;
+            bool translateXex = translateXexCheckBox != null && translateXexCheckBox.Checked;
+            bool applyTitleUpdate = applyTitleUpdateCheckBox != null && applyTitleUpdateCheckBox.Checked;
+            if ((translateXex || applyTitleUpdate) && !IsXexToolPath(xexToolPath))
+            {
+                SetStatus("선택한 패치 옵션을 사용하려면 xextool.exe가 필요합니다.");
+                UpdateFileStatusDisplay();
+                return;
+            }
+
+            if (applyTitleUpdate && !IsTitleUpdatePath(titleUpdatePath))
+            {
+                SetStatus("타이틀 업데이트를 반영하려면 TU 파일을 먼저 선택해 주세요.");
+                return;
+            }
+
             bool doubleAuditionFans = doubleAuditionFansCheckBox != null && doubleAuditionFansCheckBox.Checked;
             bool ensureAuditionPassCount = ensureAuditionPassCountCheckBox != null && ensureAuditionPassCountCheckBox.Checked;
             bool communicationPerfect = ShowCommunicationPerfectCheat && communicationPerfectCheckBox != null && communicationPerfectCheckBox.Checked;
             patchButton.Enabled = false;
+            translateXexCheckBox.Enabled = false;
+            applyTitleUpdateCheckBox.Enabled = false;
             doubleAuditionFansCheckBox.Enabled = false;
             ensureAuditionPassCountCheckBox.Enabled = false;
             communicationPerfectCheckBox.Enabled = false;
             dropPanel.Enabled = false;
             progressBar.Value = 0;
-            SetStatus("\ud328\uce58 \uc2e4\ud589 \uc911...");
+            SetStatus("패치 실행 중...");
 
             patchWorker = new BackgroundWorker();
             patchWorker.WorkerReportsProgress = true;
             patchWorker.DoWork += delegate(object workerSender, DoWorkEventArgs workerArgs)
             {
-                RunIsoRoundTrip((BackgroundWorker)workerSender, isoPath, doubleAuditionFans, ensureAuditionPassCount, communicationPerfect);
+                RunIsoRoundTrip(
+                    (BackgroundWorker)workerSender,
+                    isoPath,
+                    xexToolPath,
+                    titleUpdatePath,
+                    translateXex,
+                    applyTitleUpdate,
+                    doubleAuditionFans,
+                    ensureAuditionPassCount,
+                    communicationPerfect);
             };
             patchWorker.ProgressChanged += delegate(object workerSender, ProgressChangedEventArgs progressArgs)
             {
@@ -367,13 +607,13 @@ namespace ImasKoreanPatcher
             patchWorker.RunWorkerCompleted += delegate(object workerSender, RunWorkerCompletedEventArgs completedArgs)
             {
                 dropPanel.Enabled = true;
-                patchButton.Enabled = !String.IsNullOrEmpty(selectedIsoPath);
                 doubleAuditionFansCheckBox.Enabled = true;
                 ensureAuditionPassCountCheckBox.Enabled = true;
-                communicationPerfectCheckBox.Enabled = true;
+                communicationPerfectCheckBox.Enabled = ShowCommunicationPerfectCheat;
+                UpdateFileStatusDisplay();
                 if (completedArgs.Error != null)
                 {
-                    SetStatus("\uc624\ub958: " + completedArgs.Error.Message);
+                    SetStatus("오류: " + completedArgs.Error.Message);
                     return;
                 }
             };
@@ -383,14 +623,18 @@ namespace ImasKoreanPatcher
         private void RunIsoRoundTrip(
             BackgroundWorker worker,
             string isoPath,
+            string xexToolPath,
+            string titleUpdatePath,
+            bool translateXex,
+            bool applyTitleUpdate,
             bool doubleAuditionFans,
             bool ensureAuditionPassCount,
             bool communicationPerfect)
         {
-            Report(worker, 8, "\uc785\ub825 ISO \ud655\uc778 \uc911...");
+            Report(worker, 8, "입력 ISO 확인 중...");
             if (!File.Exists(isoPath))
             {
-                throw new FileNotFoundException("\uc120\ud0dd\ud55c ISO \ud30c\uc77c\uc774 \uc874\uc7ac\ud558\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4.", isoPath);
+                throw new FileNotFoundException("선택한 ISO 파일이 존재하지 않습니다.", isoPath);
             }
 
             string assetRoot = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets");
@@ -398,31 +642,31 @@ namespace ImasKoreanPatcher
             string exisoPath = Path.Combine(assetRoot, Path.Combine("Tools", "exiso.exe"));
             if (!File.Exists(exisoPath))
             {
-                throw new FileNotFoundException("exiso.exe\ub97c \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.", exisoPath);
+                throw new FileNotFoundException("exiso.exe를 찾을 수 없습니다.", exisoPath);
             }
 
             string translationsPath = Path.Combine(assetRoot, "translations_text_id_ko.jsonl");
             if (!File.Exists(translationsPath))
             {
-                throw new FileNotFoundException("\ubc88\uc5ed \ub370\uc774\ud130\ub97c \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.", translationsPath);
+                throw new FileNotFoundException("번역 데이터를 찾을 수 없습니다.", translationsPath);
             }
 
             string defaultXexTranslationsPath = Path.Combine(assetRoot, "default_xex_text_id_ko.jsonl");
             if (!File.Exists(defaultXexTranslationsPath))
             {
-                throw new FileNotFoundException("default.xex \ubc88\uc5ed \ub370\uc774\ud130\ub97c \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.", defaultXexTranslationsPath);
+                throw new FileNotFoundException("default.xex 번역 데이터를 찾을 수 없습니다.", defaultXexTranslationsPath);
             }
 
             string bxrTranslationsPath = Path.Combine(assetRoot, "bxr_texts.jsonl");
             if (!File.Exists(bxrTranslationsPath))
             {
-                throw new FileNotFoundException("BXR \ubc88\uc5ed \ub370\uc774\ud130\ub97c \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.", bxrTranslationsPath);
+                throw new FileNotFoundException("BXR 번역 데이터를 찾을 수 없습니다.", bxrTranslationsPath);
             }
 
             string remapPath = Path.Combine(assetRoot, Path.Combine("Remap", "xbox_hangul_remap.json"));
             if (!File.Exists(remapPath))
             {
-                throw new FileNotFoundException("\ud55c\uae00 remap \ub370\uc774\ud130\ub97c \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.", remapPath);
+                throw new FileNotFoundException("한글 remap 데이터를 찾을 수 없습니다.", remapPath);
             }
 
             string isoDirectory = Path.GetDirectoryName(isoPath);
@@ -438,7 +682,7 @@ namespace ImasKoreanPatcher
 
             Directory.CreateDirectory(extractRoot);
 
-            Report(worker, 20, "\uc6d0\ubcf8 ISO \ud574\uc81c \uc911...");
+            Report(worker, 20, "원본 ISO 해제 중...");
             RunTool(
                 exisoPath,
                 "-x -d " + QuoteArgument(extractRoot) + " " + QuoteArgument(isoPath),
@@ -446,10 +690,25 @@ namespace ImasKoreanPatcher
 
             if (!Directory.Exists(extractRoot) || Directory.GetFileSystemEntries(extractRoot).Length == 0)
             {
-                throw new InvalidOperationException("ISO \ud574\uc81c \uacb0\uacfc\uac00 \ube44\uc5b4 \uc788\uc2b5\ub2c8\ub2e4.");
+                throw new InvalidOperationException("ISO 해제 결과가 비어 있습니다.");
             }
 
-            Report(worker, 32, "\ubc88\uc5ed/remap \ub370\uc774\ud130 \ub85c\ub4dc \uc911...");
+            bool titleUpdateApplied = false;
+            if (applyTitleUpdate)
+            {
+                TitleUpdatePatcher.Apply(
+                    extractRoot,
+                    xexToolPath,
+                    titleUpdatePath,
+                    workRoot,
+                    delegate(int percent, string message)
+                    {
+                        Report(worker, percent, message);
+                    });
+                titleUpdateApplied = true;
+            }
+
+            Report(worker, 32, "번역/remap 데이터 로드 중...");
             var translations = JsonTranslationStore.Load(translationsPath);
             var defaultXexTranslations = JsonTranslationStore.Load(defaultXexTranslationsPath);
             var bxrTranslations = BxrTextTranslationStore.Load(bxrTranslationsPath);
@@ -459,7 +718,7 @@ namespace ImasKoreanPatcher
             remapper.ValidateAll(bxrTranslations.Values);
             XboxTextPatcher textPatcher = new XboxTextPatcher(translations, remapper);
 
-            Report(worker, 35, "\ud574\uc81c\ub41c \ud30c\uc77c\uc5d0 \ubc88\uc5ed \ubc18\uc601 \uc911...");
+            Report(worker, 35, "해제된 파일에 번역 반영 중...");
             TranslationPatchResult patchResult = textPatcher.PatchExtractedRoot(
                 extractRoot,
                 delegate(int percent, string message)
@@ -469,7 +728,7 @@ namespace ImasKoreanPatcher
 
             if (patchResult.MsgEntriesPatched == 0)
             {
-                throw new InvalidOperationException("\ubc18\uc601\ub41c \ubc88\uc5ed \ubb38\uc790\uc5f4\uc774 0\uac1c\uc785\ub2c8\ub2e4.");
+                throw new InvalidOperationException("반영된 번역 문자열이 0개입니다.");
             }
 
             CreditLinePatchResult creditLineResult = null;
@@ -499,12 +758,12 @@ namespace ImasKoreanPatcher
 
                 if (communicationPerfectResult.ManifestRows > 0 && communicationPerfectResult.ScbEntriesSeen == 0)
                 {
-                    throw new InvalidOperationException("\uc601\uc5c5 \uc120\ud0dd\uc9c0 \ud37c\ud399\ud2b8 \ud328\uce58 \ub300\uc0c1\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.");
+                    throw new InvalidOperationException("영업 선택지 퍼펙트 패치 대상을 찾을 수 없습니다.");
                 }
 
                 if (communicationPerfectResult.ScoreValuesPatched == 0 && communicationPerfectResult.ScoreValuesAlreadyPerfect == 0)
                 {
-                    throw new InvalidOperationException("\uc601\uc5c5 \uc120\ud0dd\uc9c0 \ud37c\ud399\ud2b8\uc5d0 \ubc18\uc601\ub41c \uc810\uc218\uac00 0\uac1c\uc785\ub2c8\ub2e4.");
+                    throw new InvalidOperationException("영업 선택지 퍼펙트에 반영된 점수가 0개입니다.");
                 }
 
                 if (communicationPerfectResult.MissingBnaFiles > 0 ||
@@ -515,7 +774,7 @@ namespace ImasKoreanPatcher
                 {
                     throw new InvalidOperationException(
                         String.Format(
-                            "\uc601\uc5c5 \uc120\ud0dd\uc9c0 \ud37c\ud399\ud2b8 \ud328\uce58 \uc911 \ub204\ub77d/\uc624\ub958\uac00 \uc788\uc2b5\ub2c8\ub2e4. BNA {0:N0}, SCB {1:N0}, Mismatch {2:N0}, Invalid {3:N0}, Errors {4:N0}",
+                            "영업 선택지 퍼펙트 패치 중 누락/오류가 있습니다. BNA {0:N0}, SCB {1:N0}, Mismatch {2:N0}, Invalid {3:N0}, Errors {4:N0}",
                             communicationPerfectResult.MissingBnaFiles,
                             communicationPerfectResult.MissingScbEntries,
                             communicationPerfectResult.ScoreMismatches,
@@ -534,7 +793,7 @@ namespace ImasKoreanPatcher
 
             if (bxrTranslations.Count > 0 && bxrResult.StringsPatched == 0)
             {
-                throw new InvalidOperationException("BXR\uc5d0 \ubc18\uc601\ub41c \ubb38\uc790\uc5f4\uc774 0\uac1c\uc785\ub2c8\ub2e4.");
+                throw new InvalidOperationException("BXR에 반영된 문자열이 0개입니다.");
             }
 
             AuditionFanPatchResult auditionFanResult = null;
@@ -552,17 +811,17 @@ namespace ImasKoreanPatcher
 
                 if (auditionFanResult.TargetBxrFilesSeen == 0)
                 {
-                    throw new InvalidOperationException("\uc624\ub514\uc158 \ud32c \uc99d\uac00\ub7c9 \ud328\uce58 \ub300\uc0c1\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.");
+                    throw new InvalidOperationException("오디션 팬 증가량 패치 대상을 찾을 수 없습니다.");
                 }
 
                 if (doubleAuditionFans && auditionFanResult.FanValuesPatched == 0 && auditionFanResult.FanValuesAlreadyPatched == 0)
                 {
-                    throw new InvalidOperationException("\uc624\ub514\uc158 \ud32c \uc99d\uac00\ub7c9\uc5d0 \ubc18\uc601\ub41c \ud544\ub4dc\uac00 0\uac1c\uc785\ub2c8\ub2e4.");
+                    throw new InvalidOperationException("오디션 팬 증가량에 반영된 필드가 0개입니다.");
                 }
 
                 if (ensureAuditionPassCount && auditionFanResult.PassValuesPatched == 0 && auditionFanResult.PassValuesAlreadyAtLeastTwo == 0)
                 {
-                    throw new InvalidOperationException("\uc624\ub514\uc158 \ud569\uaca9\uc790\uc218\uc5d0 \ubc18\uc601\ub41c \ud544\ub4dc\uac00 0\uac1c\uc785\ub2c8\ub2e4.");
+                    throw new InvalidOperationException("오디션 합격자수에 반영된 필드가 0개입니다.");
                 }
             }
 
@@ -577,14 +836,14 @@ namespace ImasKoreanPatcher
             int imageTexturesChanged = imageResult.EntriesPatched + imageResult.EntriesAdded;
             if (imageResult.ManifestRows > 0 && imageTexturesChanged == 0)
             {
-                throw new InvalidOperationException("\uc774\ubbf8\uc9c0\uc5d0 \ubc18\uc601\ub41c \ud14d\uc2a4\ucc98\uac00 0\uac1c\uc785\ub2c8\ub2e4.");
+                throw new InvalidOperationException("이미지에 반영된 텍스처가 0개입니다.");
             }
 
             if (imageResult.MissingAssets > 0 || imageResult.MissingBnaFiles > 0 || imageResult.MissingEntries > 0 || imageResult.Errors > 0)
             {
                 throw new InvalidOperationException(
                     String.Format(
-                        "\uc774\ubbf8\uc9c0 \ud328\uce58 \uc911 \ub204\ub77d\uc774 \uc788\uc2b5\ub2c8\ub2e4. Assets {0:N0}, BNA {1:N0}, Entry {2:N0}, Errors {3:N0}",
+                        "이미지 패치 중 누락이 있습니다. Assets {0:N0}, BNA {1:N0}, Entry {2:N0}, Errors {3:N0}",
                         imageResult.MissingAssets,
                         imageResult.MissingBnaFiles,
                         imageResult.MissingEntries,
@@ -609,15 +868,19 @@ namespace ImasKoreanPatcher
                 throw new InvalidOperationException("Boot logo patch target logo entries were not found.");
             }
 
-            XexTextPatcher xexPatcher = new XexTextPatcher(defaultXexTranslations, remapper);
-            XexPatchResult xexResult = xexPatcher.PatchExtractedRoot(
-                extractRoot,
-                assetRoot,
-                workRoot,
-                delegate(int percent, string message)
-                {
-                    Report(worker, percent, message);
-                });
+            XexPatchResult xexResult = new XexPatchResult();
+            if (translateXex)
+            {
+                XexTextPatcher xexPatcher = new XexTextPatcher(defaultXexTranslations, remapper);
+                xexResult = xexPatcher.PatchExtractedRoot(
+                    extractRoot,
+                    xexToolPath,
+                    workRoot,
+                    delegate(int percent, string message)
+                    {
+                        Report(worker, percent, message);
+                    });
+            }
 
             FontPatchRunner.PatchExtractedRoot(
                 extractRoot,
@@ -628,7 +891,7 @@ namespace ImasKoreanPatcher
                     Report(worker, percent, message);
                 });
 
-            Report(worker, 91, "\ubc88\uc5ed\ub41c \ud30c\uc77c\ub85c ISO \uc7ac\uc0dd\uc131 \uc911...");
+            Report(worker, 91, "번역된 파일로 ISO 재생성 중...");
             RunTool(
                 exisoPath,
                 "-c " + QuoteArgument(extractRoot) + " " + QuoteArgument(outputIso),
@@ -636,26 +899,26 @@ namespace ImasKoreanPatcher
 
             if (!File.Exists(outputIso))
             {
-                throw new FileNotFoundException("\uc7ac\uc0dd\uc131\ub41c ISO\ub97c \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.", outputIso);
+                throw new FileNotFoundException("재생성된 ISO를 찾을 수 없습니다.", outputIso);
             }
 
             FileInfo outputInfo = new FileInfo(outputIso);
             if (outputInfo.Length == 0)
             {
-                throw new InvalidOperationException("\uc7ac\uc0dd\uc131\ub41c ISO \ud30c\uc77c \ud06c\uae30\uac00 0\uc785\ub2c8\ub2e4.");
+                throw new InvalidOperationException("재생성된 ISO 파일 크기가 0입니다.");
             }
 
             Report(
                 worker,
                 100,
                 String.Format(
-                    "\uc644\ub8cc: BNA {0:N0}\uac1c, BXR {1:N0}\uac1c, \uc774\ubbf8\uc9c0 {2:N0}\uac1c, XEX {3:N0}\uac1c \ubb38\uc790\uc5f4 \ubc18\uc601{4}{5}, {6}",
+                    "완료: BNA {0:N0}개, BXR {1:N0}개, 이미지 {2:N0}개, XEX {3:N0}개 문자열 반영{4}{5}, {6}",
                     patchResult.MsgEntriesPatched,
                     bxrResult.StringsPatched,
                     imageTexturesChanged,
                     xexResult.StringsPatched,
                     FormatCreditLineSummary(creditLineResult),
-                    FormatBootLogoInfoSummary(bootLogoInfoResult) + FormatCommunicationPerfectSummary(communicationPerfectResult) + FormatAuditionFanSummary(auditionFanResult),
+                    FormatBootLogoInfoSummary(bootLogoInfoResult) + FormatCommunicationPerfectSummary(communicationPerfectResult) + FormatAuditionFanSummary(auditionFanResult) + FormatTitleUpdateSummary(titleUpdateApplied),
                     outputIso));
         }
 
@@ -696,12 +959,12 @@ namespace ImasKoreanPatcher
 
             if (result.StringsPatched > 0)
             {
-                return ", \ud06c\ub808\ub527 1\uac1c \ubc18\uc601";
+                return ", 크레딧 1개 반영";
             }
 
             if (result.AlreadyPatched)
             {
-                return ", \ud06c\ub808\ub527 \uc774\ubbf8 \uc801\uc6a9";
+                return ", 크레딧 이미 적용";
             }
 
             return String.Empty;
@@ -716,12 +979,12 @@ namespace ImasKoreanPatcher
 
             if (result.ScoreValuesPatched > 0)
             {
-                return String.Format(", \uc601\uc5c5 \ud37c\ud399\ud2b8 {0:N0}\uac1c \ubc18\uc601", result.ScoreValuesPatched);
+                return String.Format(", 영업 퍼펙트 {0:N0}개 반영", result.ScoreValuesPatched);
             }
 
             if (result.ScoreValuesAlreadyPerfect > 0)
             {
-                return String.Format(", \uc601\uc5c5 \ud37c\ud399\ud2b8 \uc774\ubbf8 \uc801\uc6a9 {0:N0}\uac1c", result.ScoreValuesAlreadyPerfect);
+                return String.Format(", 영업 퍼펙트 이미 적용 {0:N0}개", result.ScoreValuesAlreadyPerfect);
             }
 
             return String.Empty;
@@ -736,12 +999,12 @@ namespace ImasKoreanPatcher
 
             if (result.Changed)
             {
-                return ", \ubd80\ud2b8 \ub85c\uace0 " + result.VersionText + " \ubc18\uc601";
+                return ", 부트 로고 " + result.VersionText + " 반영";
             }
 
             if (result.AlreadyPatched)
             {
-                return ", \ubd80\ud2b8 \ub85c\uace0 " + result.VersionText + " \uc774\ubbf8 \uc801\uc6a9";
+                return ", 부트 로고 " + result.VersionText + " 이미 적용";
             }
 
             return String.Empty;
@@ -757,23 +1020,28 @@ namespace ImasKoreanPatcher
             StringBuilder builder = new StringBuilder();
             if (result.FanValuesPatched > 0)
             {
-                builder.AppendFormat(", \uc624\ub514\uc158 \ud32c {0:N0}\uac1c \ubc18\uc601", result.FanValuesPatched);
+                builder.AppendFormat(", 오디션 팬 {0:N0}개 반영", result.FanValuesPatched);
             }
             else if (result.FanValuesAlreadyPatched > 0)
             {
-                builder.AppendFormat(", \uc624\ub514\uc158 \ud32c \uc774\ubbf8 \uc801\uc6a9 {0:N0}\uac1c", result.FanValuesAlreadyPatched);
+                builder.AppendFormat(", 오디션 팬 이미 적용 {0:N0}개", result.FanValuesAlreadyPatched);
             }
 
             if (result.PassValuesPatched > 0)
             {
-                builder.AppendFormat(", \ud569\uaca9\uc790\uc218 {0:N0}\uac1c \ubc18\uc601", result.PassValuesPatched);
+                builder.AppendFormat(", 합격자수 {0:N0}개 반영", result.PassValuesPatched);
             }
             else if (result.PassValuesAlreadyAtLeastTwo > 0)
             {
-                builder.AppendFormat(", \ud569\uaca9\uc790\uc218 \uc774\ubbf8 2\uba85\uc774\uc0c1 {0:N0}\uac1c", result.PassValuesAlreadyAtLeastTwo);
+                builder.AppendFormat(", 합격자수 이미 2명이상 {0:N0}개", result.PassValuesAlreadyAtLeastTwo);
             }
 
             return builder.ToString();
+        }
+
+        private static string FormatTitleUpdateSummary(bool applied)
+        {
+            return applied ? ", 타이틀 업데이트 반영" : String.Empty;
         }
 
         private static string FindAssetsRoot(string preferredPath)
@@ -814,7 +1082,7 @@ namespace ImasKoreanPatcher
                 }
             }
 
-            throw new IOException("\uc0ac\uc6a9 \uac00\ub2a5\ud55c \uc791\uc5c5 \ud3f4\ub354 \uc774\ub984\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.");
+            throw new IOException("사용 가능한 작업 폴더 이름을 찾을 수 없습니다.");
         }
 
         private static string GetAvailableFilePath(string desiredPath)
@@ -841,7 +1109,7 @@ namespace ImasKoreanPatcher
                 }
             }
 
-            throw new IOException("\uc0ac\uc6a9 \uac00\ub2a5\ud55c \ucd9c\ub825 ISO \uc774\ub984\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.");
+            throw new IOException("사용 가능한 출력 ISO 이름을 찾을 수 없습니다.");
         }
 
         private static string QuoteArgument(string value)
@@ -876,7 +1144,7 @@ namespace ImasKoreanPatcher
                     {
                         message = "exit code " + process.ExitCode.ToString();
                     }
-                    throw new InvalidOperationException("exiso.exe \uc2e4\ud589 \uc2e4\ud328: " + message);
+                    throw new InvalidOperationException("exiso.exe 실행 실패: " + message);
                 }
             }
         }

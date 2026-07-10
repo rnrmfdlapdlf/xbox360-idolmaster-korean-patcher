@@ -3,6 +3,7 @@ obj/
 .vs/
 Assets/
 docs/
+scripts/
 AGENTS.md
 THIRD_PARTY_NOTICES.txt
 *.user

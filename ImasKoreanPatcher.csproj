@@ -68,6 +68,7 @@
     <Compile Include="NfhFont.cs" />
     <Compile Include="NutTexture.cs" />
     <Compile Include="TranslationPatchResult.cs" />
+    <Compile Include="TitleUpdatePatcher.cs" />
     <Compile Include="XexPatchResult.cs" />
     <Compile Include="XexTextPatcher.cs" />
     <Compile Include="XboxTextPatcher.cs" />

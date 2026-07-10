@@ -26,6 +26,7 @@ namespace ImasKoreanPatcher
             }
 
             List<ImageTexturePatchEntry> rows = new List<ImageTexturePatchEntry>();
+            HashSet<string> targetKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             using (StreamReader reader = new StreamReader(manifestPath, Encoding.UTF8, true))
             {
                 string line;
@@ -43,15 +44,42 @@ namespace ImasKoreanPatcher
                     string entry = JsonTranslationStore.TryReadStringProperty(line, "entry");
                     string asset = JsonTranslationStore.TryReadStringProperty(line, "asset");
                     string allowAdd = JsonTranslationStore.TryReadStringProperty(line, "allow_add");
+                    string category = JsonTranslationStore.TryReadStringProperty(line, "category");
+                    string target = JsonTranslationStore.TryReadStringProperty(line, "target");
                     if (String.IsNullOrEmpty(bna) || String.IsNullOrEmpty(entry) || String.IsNullOrEmpty(asset))
                     {
                         throw new InvalidDataException("Invalid image texture manifest row at line " + lineNumber.ToString() + ".");
                     }
 
+                    if (String.IsNullOrEmpty(category))
+                    {
+                        category = "legacy";
+                    }
+                    if (String.IsNullOrEmpty(target))
+                    {
+                        target = "bna";
+                    }
+                    if (!String.Equals(target, "bna", StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidDataException(
+                            "Unsupported image target '" + target + "' at manifest line " + lineNumber.ToString() + ".");
+                    }
+
+                    string normalizedBna = NormalizePath(bna);
+                    string normalizedEntry = NormalizePath(entry);
+                    string targetKey = normalizedBna + "|" + normalizedEntry;
+                    if (!targetKeys.Add(targetKey))
+                    {
+                        throw new InvalidDataException(
+                            "Duplicate BNA/NUT image target at manifest line " + lineNumber.ToString() + ": " +
+                            normalizedBna + " :: " + normalizedEntry);
+                    }
+                    ValidateAssetName(asset, lineNumber);
                     rows.Add(new ImageTexturePatchEntry(
                         id,
-                        NormalizePath(bna),
-                        NormalizePath(entry),
+                        category,
+                        normalizedBna,
+                        normalizedEntry,
                         asset,
                         String.Equals(allowAdd, "true", StringComparison.OrdinalIgnoreCase)));
                 }
@@ -69,43 +97,64 @@ namespace ImasKoreanPatcher
                 return result;
             }
 
-            Dictionary<string, List<ImageTexturePatchEntry>> byBna = new Dictionary<string, List<ImageTexturePatchEntry>>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, ImageBnaPatchGroup> byBna = new Dictionary<string, ImageBnaPatchGroup>(StringComparer.OrdinalIgnoreCase);
+            List<ImageBnaPatchGroup> groups = new List<ImageBnaPatchGroup>();
+            HashSet<string> categories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             for (int index = 0; index < entries.Count; index++)
             {
                 ImageTexturePatchEntry entry = entries[index];
-                List<ImageTexturePatchEntry> rows;
-                if (!byBna.TryGetValue(entry.BnaPath, out rows))
+                ImageBnaPatchGroup group;
+                if (!byBna.TryGetValue(entry.BnaPath, out group))
                 {
-                    rows = new List<ImageTexturePatchEntry>();
-                    byBna[entry.BnaPath] = rows;
+                    group = new ImageBnaPatchGroup(entry.BnaPath);
+                    byBna[entry.BnaPath] = group;
+                    groups.Add(group);
                 }
 
-                rows.Add(entry);
+                group.Add(entry);
+                categories.Add(entry.Category);
             }
+            result.CategoriesSeen = categories.Count;
 
             int bnaIndex = 0;
-            foreach (KeyValuePair<string, List<ImageTexturePatchEntry>> pair in byBna)
+            for (int groupIndex = 0; groupIndex < groups.Count; groupIndex++)
             {
+                ImageBnaPatchGroup group = groups[groupIndex];
                 if (progress != null)
                 {
-                    int percent = 73 + (int)(2.0 * bnaIndex / Math.Max(1, byBna.Count));
-                    progress(percent, String.Format("이미지 패치 중... {0:N0}/{1:N0}", bnaIndex + 1, byBna.Count));
+                    int percent = 73 + (int)(2.0 * bnaIndex / Math.Max(1, groups.Count));
+                    progress(
+                        percent,
+                        String.Format(
+                            "이미지 패치 중... {0:N0}/{1:N0} [{2}]",
+                            bnaIndex + 1,
+                            groups.Count,
+                            String.Join(", ", group.Categories.ToArray())));
                 }
 
                 bnaIndex++;
                 try
                 {
-                    PatchBnaFile(extractedRoot, pair.Key, pair.Value, result);
+                    PatchBnaFile(extractedRoot, group.BnaPath, group.Rows, result);
                 }
-                catch
+                catch (Exception exception)
                 {
-                    result.Errors++;
+                    throw new InvalidDataException(
+                        "Image patch failed for BNA '" + group.BnaPath + "' (categories: " +
+                        String.Join(", ", group.Categories.ToArray()) + ").",
+                        exception);
                 }
             }
 
             if (progress != null)
             {
-                progress(75, String.Format("이미지 패치 완료: {0:N0}개 교체, {1:N0}개 추가", result.EntriesPatched, result.EntriesAdded));
+                progress(
+                    75,
+                    String.Format(
+                        "이미지 패치 완료: {0:N0}개 분류, {1:N0}개 교체, {2:N0}개 추가",
+                        result.CategoriesSeen,
+                        result.EntriesPatched,
+                        result.EntriesAdded));
             }
 
             return result;
@@ -132,7 +181,7 @@ namespace ImasKoreanPatcher
             for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
             {
                 ImageTexturePatchEntry patch = rows[rowIndex];
-                string assetPath = Path.Combine(imageAssetRoot, patch.AssetName);
+                string assetPath = ResolveAssetPath(patch.AssetName);
                 if (!File.Exists(assetPath))
                 {
                     result.MissingAssets++;
@@ -211,17 +260,76 @@ namespace ImasKoreanPatcher
             return path.Replace('\\', '/').Trim('/');
         }
 
+        private static void ValidateAssetName(string assetName, int lineNumber)
+        {
+            string normalized = NormalizePath(assetName);
+            if (String.IsNullOrEmpty(normalized) || Path.IsPathRooted(assetName) || normalized.IndexOf(':') >= 0)
+            {
+                throw new InvalidDataException("Invalid image asset path at manifest line " + lineNumber.ToString() + ".");
+            }
+
+            string[] segments = normalized.Split('/');
+            for (int index = 0; index < segments.Length; index++)
+            {
+                if (segments[index] == ".." || segments[index] == ".")
+                {
+                    throw new InvalidDataException("Unsafe image asset path at manifest line " + lineNumber.ToString() + ".");
+                }
+            }
+        }
+
+        private string ResolveAssetPath(string assetName)
+        {
+            string root = Path.GetFullPath(imageAssetRoot).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            string relative = NormalizePath(assetName).Replace('/', Path.DirectorySeparatorChar);
+            string fullPath = Path.GetFullPath(Path.Combine(root, relative));
+            if (!fullPath.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("Image asset path escapes the asset root: " + assetName);
+            }
+
+            return fullPath;
+        }
+
+        private sealed class ImageBnaPatchGroup
+        {
+            private readonly HashSet<string> categorySet;
+
+            public readonly string BnaPath;
+            public readonly List<ImageTexturePatchEntry> Rows;
+            public readonly List<string> Categories;
+
+            public ImageBnaPatchGroup(string bnaPath)
+            {
+                BnaPath = bnaPath;
+                Rows = new List<ImageTexturePatchEntry>();
+                Categories = new List<string>();
+                categorySet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            public void Add(ImageTexturePatchEntry entry)
+            {
+                Rows.Add(entry);
+                if (categorySet.Add(entry.Category))
+                {
+                    Categories.Add(entry.Category);
+                }
+            }
+        }
+
         private sealed class ImageTexturePatchEntry
         {
             public readonly string Id;
+            public readonly string Category;
             public readonly string BnaPath;
             public readonly string EntryPath;
             public readonly string AssetName;
             public readonly bool AllowAdd;
 
-            public ImageTexturePatchEntry(string id, string bnaPath, string entryPath, string assetName, bool allowAdd)
+            public ImageTexturePatchEntry(string id, string category, string bnaPath, string entryPath, string assetName, bool allowAdd)
             {
                 Id = id;
+                Category = category;
                 BnaPath = bnaPath;
                 EntryPath = entryPath;
                 AssetName = assetName;

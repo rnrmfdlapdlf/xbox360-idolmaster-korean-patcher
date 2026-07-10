@@ -47,7 +47,7 @@ namespace ImasKoreanPatcher
             this.remapper = remapper;
         }
 
-        public XexPatchResult PatchExtractedRoot(string extractedRoot, string assetRoot, string workRoot, Action<int, string> progress)
+        public XexPatchResult PatchExtractedRoot(string extractedRoot, string xexToolPath, string workRoot, Action<int, string> progress)
         {
             XexPatchResult result = new XexPatchResult();
             result.TranslationRows = translations.Count;
@@ -57,7 +57,6 @@ namespace ImasKoreanPatcher
             }
 
             string defaultXexPath = Path.Combine(extractedRoot, "default.xex");
-            string xexToolPath = Path.Combine(assetRoot, Path.Combine("Tools", "xextool.exe"));
             if (!File.Exists(defaultXexPath))
             {
                 throw new FileNotFoundException("default.xex를 찾을 수 없습니다.", defaultXexPath);
@@ -85,7 +84,6 @@ namespace ImasKoreanPatcher
             }
 
             byte[] data = File.ReadAllBytes(decryptedPath);
-            int originalSize = checked((int)new FileInfo(defaultXexPath).Length);
             Report(progress, 78, "default.xex 문자열 패치 중...");
             PatchUtf16BeStrings(data, result);
             PatchBootLogoProjectHeight(data, result);
@@ -93,18 +91,6 @@ namespace ImasKoreanPatcher
             if (result.StringsPatched == 0)
             {
                 throw new InvalidOperationException("default.xex에 반영된 문자열이 0개입니다.");
-            }
-
-            if (data.Length > originalSize)
-            {
-                throw new InvalidOperationException("패치된 default.xex가 원본 ISO 파일보다 큽니다.");
-            }
-
-            if (data.Length < originalSize)
-            {
-                byte[] padded = new byte[originalSize];
-                Buffer.BlockCopy(data, 0, padded, 0, data.Length);
-                data = padded;
             }
 
             File.WriteAllBytes(defaultXexPath, data);
