@@ -53,7 +53,52 @@ namespace ImasKoreanPatcher
             0x43, 0xC2, 0x80, 0x00,
             0xC3, 0x88, 0x00, 0x00
         };
+        private static readonly byte[] BootLogoProjectHeightSharedPattern = new byte[]
+        {
+            0x43, 0x78, 0x00, 0x00,
+            0x43, 0xC2, 0x80, 0x00,
+            0xC3, 0x88, 0x00, 0x00,
+            0x43, 0xAC, 0x00, 0x00,
+            0x42, 0xC0, 0x00, 0x00,
+            0xC1, 0x40, 0x00, 0x00
+        };
+        private static readonly byte[] BootLogoProjectHeight384SharedPattern = new byte[]
+        {
+            0x43, 0xC0, 0x00, 0x00,
+            0x43, 0xC2, 0x80, 0x00,
+            0xC3, 0x88, 0x00, 0x00,
+            0x43, 0xAC, 0x00, 0x00,
+            0x42, 0xC0, 0x00, 0x00,
+            0xC1, 0x40, 0x00, 0x00
+        };
+        private static readonly byte[] BootLogoProjectHeight512SharedPattern = new byte[]
+        {
+            0x44, 0x00, 0x00, 0x00,
+            0x43, 0xC2, 0x80, 0x00,
+            0xC3, 0x88, 0x00, 0x00,
+            0x43, 0xAC, 0x00, 0x00,
+            0x42, 0xC0, 0x00, 0x00,
+            0xC1, 0x40, 0x00, 0x00
+        };
         private static readonly byte[] BootLogoProjectHeight512 = new byte[] { 0x44, 0x00, 0x00, 0x00 };
+
+        // The audition category menu checks online status only when the selected category index is 5 (Special 3).
+        // Jumping directly to the common selection path leaves the game's global online state and offline battle path unchanged.
+        private const int SpecialAudition3GateBranchOffset = 16;
+        private static readonly byte[] SpecialAudition3OnlineGatePattern = new byte[]
+        {
+            0x89, 0x5F, 0x00, 0xD4,
+            0x2B, 0x0A, 0x00, 0x01,
+            0x41, 0x9A, 0x02, 0x34,
+            0x2F, 0x0B, 0x00, 0x05,
+            0x40, 0x9A, 0x00, 0x14,
+            0x48, 0x00, 0x29, 0xE9,
+            0x54, 0x6B, 0x06, 0x3E,
+            0x2B, 0x0B, 0x00, 0x00,
+            0x41, 0x9A, 0x02, 0x1C
+        };
+        private static readonly byte[] UnconditionalBranchForward20 = new byte[] { 0x48, 0x00, 0x00, 0x14 };
+        private static readonly byte[] SpecialAudition3UnlockedGatePattern = BuildSpecialAudition3UnlockedGatePattern();
 
         private readonly Dictionary<string, string> translations;
         private readonly HangulRemapper remapper;
@@ -66,11 +111,32 @@ namespace ImasKoreanPatcher
 
         public XexPatchResult PatchExtractedRoot(string extractedRoot, string xexToolPath, string workRoot, Action<int, string> progress)
         {
+            return PatchExtractedRoot(extractedRoot, xexToolPath, workRoot, true, false, progress);
+        }
+
+        public XexPatchResult PatchExtractedRoot(
+            string extractedRoot,
+            string xexToolPath,
+            string workRoot,
+            bool patchText,
+            bool unlockSpecialAudition3,
+            Action<int, string> progress)
+        {
             XexPatchResult result = new XexPatchResult();
-            result.TranslationRows = translations.Count;
-            if (translations.Count == 0)
+            result.TranslationRows = patchText ? translations.Count : 0;
+            if (!patchText && !unlockSpecialAudition3)
             {
                 return result;
+            }
+
+            if (patchText && translations.Count == 0)
+            {
+                if (!unlockSpecialAudition3)
+                {
+                    return result;
+                }
+
+                patchText = false;
             }
 
             string defaultXexPath = Path.Combine(extractedRoot, "default.xex");
@@ -101,18 +167,90 @@ namespace ImasKoreanPatcher
             }
 
             byte[] data = File.ReadAllBytes(decryptedPath);
-            Report(progress, 78, "default.xex 문자열 패치 중...");
-            PatchUtf16BeStrings(data, result);
+            Report(progress, 78, "부트 로고 표시 영역 패치 중...");
             PatchBootLogoProjectHeight(data, result);
-
-            if (result.StringsPatched == 0)
+            if (result.BootLogoLayoutPatched == 0 && result.BootLogoLayoutAlreadyPatched == 0)
             {
-                throw new InvalidOperationException("default.xex에 반영된 문자열이 0개입니다.");
+                throw new InvalidDataException("Boot logo layout was not found in default.xex.");
+            }
+
+            if (patchText)
+            {
+                Report(progress, 78, "default.xex 문자열 패치 중...");
+                PatchUtf16BeStrings(data, result);
+
+                if (result.StringsPatched == 0)
+                {
+                    throw new InvalidOperationException("default.xex에 반영된 문자열이 0개입니다.");
+                }
+            }
+
+            if (unlockSpecialAudition3)
+            {
+                Report(progress, 79, "특별 오디션 3 상시 개방 패치 중...");
+                PatchSpecialAudition3Availability(data, result);
             }
 
             File.WriteAllBytes(defaultXexPath, data);
-            Report(progress, 80, String.Format("default.xex 패치 완료: {0:N0}개 문자열", result.StringsPatched));
+            if (unlockSpecialAudition3)
+            {
+                Report(
+                    progress,
+                    80,
+                    String.Format(
+                        "default.xex 패치 완료: {0:N0}개 문자열, 특별 오디션 3 {1:N0}개",
+                        result.StringsPatched,
+                        result.SpecialAudition3GatesPatched));
+            }
+            else
+            {
+                Report(progress, 80, String.Format("default.xex 패치 완료: {0:N0}개 문자열", result.StringsPatched));
+            }
             return result;
+        }
+
+        private static byte[] BuildSpecialAudition3UnlockedGatePattern()
+        {
+            byte[] pattern = (byte[])SpecialAudition3OnlineGatePattern.Clone();
+            Buffer.BlockCopy(
+                UnconditionalBranchForward20,
+                0,
+                pattern,
+                SpecialAudition3GateBranchOffset,
+                UnconditionalBranchForward20.Length);
+            return pattern;
+        }
+
+        private static void PatchSpecialAudition3Availability(byte[] data, XexPatchResult result)
+        {
+            int originalOffset = FindPattern(data, SpecialAudition3OnlineGatePattern);
+            if (originalOffset >= 0)
+            {
+                originalOffset = FindUniquePattern(
+                    data,
+                    SpecialAudition3OnlineGatePattern,
+                    "Special Audition 3 online gate");
+                Buffer.BlockCopy(
+                    UnconditionalBranchForward20,
+                    0,
+                    data,
+                    originalOffset + SpecialAudition3GateBranchOffset,
+                    UnconditionalBranchForward20.Length);
+                result.SpecialAudition3GatesPatched++;
+                return;
+            }
+
+            if (FindPattern(data, SpecialAudition3UnlockedGatePattern) >= 0)
+            {
+                FindUniquePattern(
+                    data,
+                    SpecialAudition3UnlockedGatePattern,
+                    "patched Special Audition 3 online gate");
+                result.SpecialAudition3GatesAlreadyPatched++;
+                return;
+            }
+
+            throw new InvalidDataException("Special Audition 3 online gate was not found in default.xex.");
         }
 
         private static void PatchBootLogoProjectHeight(byte[] data, XexPatchResult result)
@@ -133,8 +271,33 @@ namespace ImasKoreanPatcher
                 return;
             }
 
+            offset = FindPattern(data, BootLogoProjectHeightSharedPattern);
+            if (offset >= 0)
+            {
+                offset = FindUniquePattern(data, BootLogoProjectHeightSharedPattern, "boot logo project height");
+                Buffer.BlockCopy(BootLogoProjectHeight512, 0, data, offset, BootLogoProjectHeight512.Length);
+                result.BootLogoLayoutPatched++;
+                return;
+            }
+
+            offset = FindPattern(data, BootLogoProjectHeight384SharedPattern);
+            if (offset >= 0)
+            {
+                offset = FindUniquePattern(data, BootLogoProjectHeight384SharedPattern, "boot logo project height 384");
+                Buffer.BlockCopy(BootLogoProjectHeight512, 0, data, offset, BootLogoProjectHeight512.Length);
+                result.BootLogoLayoutPatched++;
+                return;
+            }
+
             if (FindPattern(data, BootLogoProjectHeight512Pattern) >= 0)
             {
+                result.BootLogoLayoutAlreadyPatched++;
+                return;
+            }
+
+            if (FindPattern(data, BootLogoProjectHeight512SharedPattern) >= 0)
+            {
+                FindUniquePattern(data, BootLogoProjectHeight512SharedPattern, "patched boot logo project height");
                 result.BootLogoLayoutAlreadyPatched++;
             }
         }

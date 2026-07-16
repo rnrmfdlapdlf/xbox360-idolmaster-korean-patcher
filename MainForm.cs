@@ -22,6 +22,7 @@ namespace ImasKoreanPatcher
         private CheckBox applyTitleUpdateCheckBox;
         private CheckBox doubleAuditionFansCheckBox;
         private CheckBox ensureAuditionPassCountCheckBox;
+        private CheckBox specialAudition3AlwaysOpenCheckBox;
         private CheckBox communicationPerfectCheckBox;
         private Button patchButton;
         private ProgressBar progressBar;
@@ -197,7 +198,7 @@ namespace ImasKoreanPatcher
 
             TableLayoutPanel layout = new TableLayoutPanel();
             layout.ColumnCount = 1;
-            layout.RowCount = 12;
+            layout.RowCount = 13;
             layout.Dock = DockStyle.Fill;
             layout.BackColor = BackColor;
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 8F));
@@ -210,6 +211,7 @@ namespace ImasKoreanPatcher
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, ShowCommunicationPerfectCheat ? 34F : 0F));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             panel.Controls.Add(layout);
@@ -274,6 +276,15 @@ namespace ImasKoreanPatcher
             ensureAuditionPassCountCheckBox.Margin = new Padding(0);
             layout.Controls.Add(ensureAuditionPassCountCheckBox, 0, 9);
 
+            specialAudition3AlwaysOpenCheckBox = new CheckBox();
+            specialAudition3AlwaysOpenCheckBox.Anchor = AnchorStyles.Left;
+            specialAudition3AlwaysOpenCheckBox.AutoSize = true;
+            specialAudition3AlwaysOpenCheckBox.Text = "특별 오디션 3 상시 개방 (xextool.exe 필요)";
+            specialAudition3AlwaysOpenCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
+            specialAudition3AlwaysOpenCheckBox.Margin = new Padding(0);
+            specialAudition3AlwaysOpenCheckBox.Enabled = false;
+            layout.Controls.Add(specialAudition3AlwaysOpenCheckBox, 0, 10);
+
             communicationPerfectCheckBox = new CheckBox();
             communicationPerfectCheckBox.Anchor = AnchorStyles.Left;
             communicationPerfectCheckBox.AutoSize = true;
@@ -282,7 +293,7 @@ namespace ImasKoreanPatcher
             communicationPerfectCheckBox.Margin = new Padding(0);
             communicationPerfectCheckBox.Visible = ShowCommunicationPerfectCheat;
             communicationPerfectCheckBox.TabStop = ShowCommunicationPerfectCheat;
-            layout.Controls.Add(communicationPerfectCheckBox, 0, 10);
+            layout.Controls.Add(communicationPerfectCheckBox, 0, 11);
 
             return panel;
         }
@@ -512,6 +523,15 @@ namespace ImasKoreanPatcher
                 }
             }
 
+            if (specialAudition3AlwaysOpenCheckBox != null)
+            {
+                specialAudition3AlwaysOpenCheckBox.Enabled = hasXexTool && !workerBusy;
+                if (!hasXexTool)
+                {
+                    specialAudition3AlwaysOpenCheckBox.Checked = false;
+                }
+            }
+
             if (patchButton != null)
             {
                 patchButton.Enabled = IsIsoPath(selectedIsoPath) && !workerBusy;
@@ -556,7 +576,8 @@ namespace ImasKoreanPatcher
             string titleUpdatePath = selectedTitleUpdatePath;
             bool translateXex = translateXexCheckBox != null && translateXexCheckBox.Checked;
             bool applyTitleUpdate = applyTitleUpdateCheckBox != null && applyTitleUpdateCheckBox.Checked;
-            if ((translateXex || applyTitleUpdate) && !IsXexToolPath(xexToolPath))
+            bool unlockSpecialAudition3 = specialAudition3AlwaysOpenCheckBox != null && specialAudition3AlwaysOpenCheckBox.Checked;
+            if ((translateXex || applyTitleUpdate || unlockSpecialAudition3) && !IsXexToolPath(xexToolPath))
             {
                 SetStatus("선택한 패치 옵션을 사용하려면 xextool.exe가 필요합니다.");
                 UpdateFileStatusDisplay();
@@ -577,6 +598,7 @@ namespace ImasKoreanPatcher
             applyTitleUpdateCheckBox.Enabled = false;
             doubleAuditionFansCheckBox.Enabled = false;
             ensureAuditionPassCountCheckBox.Enabled = false;
+            specialAudition3AlwaysOpenCheckBox.Enabled = false;
             communicationPerfectCheckBox.Enabled = false;
             dropPanel.Enabled = false;
             progressBar.Value = 0;
@@ -595,6 +617,7 @@ namespace ImasKoreanPatcher
                     applyTitleUpdate,
                     doubleAuditionFans,
                     ensureAuditionPassCount,
+                    unlockSpecialAudition3,
                     communicationPerfect);
             };
             patchWorker.ProgressChanged += delegate(object workerSender, ProgressChangedEventArgs progressArgs)
@@ -630,6 +653,7 @@ namespace ImasKoreanPatcher
             bool applyTitleUpdate,
             bool doubleAuditionFans,
             bool ensureAuditionPassCount,
+            bool unlockSpecialAudition3,
             bool communicationPerfect)
         {
             Report(worker, 8, "입력 ISO 확인 중...");
@@ -870,17 +894,26 @@ namespace ImasKoreanPatcher
             }
 
             XexPatchResult xexResult = new XexPatchResult();
-            if (translateXex)
+            if (translateXex || unlockSpecialAudition3)
             {
                 XexTextPatcher xexPatcher = new XexTextPatcher(defaultXexTranslations, remapper);
                 xexResult = xexPatcher.PatchExtractedRoot(
                     extractRoot,
                     xexToolPath,
                     workRoot,
+                    translateXex,
+                    unlockSpecialAudition3,
                     delegate(int percent, string message)
                     {
                         Report(worker, percent, message);
                     });
+
+                if (unlockSpecialAudition3 &&
+                    xexResult.SpecialAudition3GatesPatched == 0 &&
+                    xexResult.SpecialAudition3GatesAlreadyPatched == 0)
+                {
+                    throw new InvalidOperationException("특별 오디션 3 상시 개방 패치가 반영되지 않았습니다.");
+                }
             }
 
             FontPatchRunner.PatchExtractedRoot(
@@ -919,7 +952,7 @@ namespace ImasKoreanPatcher
                     imageTexturesChanged,
                     xexResult.StringsPatched,
                     FormatCreditLineSummary(creditLineResult),
-                    FormatBootLogoInfoSummary(bootLogoInfoResult) + FormatCommunicationPerfectSummary(communicationPerfectResult) + FormatAuditionFanSummary(auditionFanResult) + FormatTitleUpdateSummary(titleUpdateApplied),
+                    FormatBootLogoInfoSummary(bootLogoInfoResult) + FormatCommunicationPerfectSummary(communicationPerfectResult) + FormatAuditionFanSummary(auditionFanResult) + FormatSpecialAudition3Summary(xexResult) + FormatTitleUpdateSummary(titleUpdateApplied),
                     outputIso));
         }
 
@@ -1038,6 +1071,26 @@ namespace ImasKoreanPatcher
             }
 
             return builder.ToString();
+        }
+
+        private static string FormatSpecialAudition3Summary(XexPatchResult result)
+        {
+            if (result == null)
+            {
+                return String.Empty;
+            }
+
+            if (result.SpecialAudition3GatesPatched > 0)
+            {
+                return ", 특별 오디션 3 상시 개방";
+            }
+
+            if (result.SpecialAudition3GatesAlreadyPatched > 0)
+            {
+                return ", 특별 오디션 3 이미 상시 개방";
+            }
+
+            return String.Empty;
         }
 
         private static string FormatTitleUpdateSummary(bool applied)
