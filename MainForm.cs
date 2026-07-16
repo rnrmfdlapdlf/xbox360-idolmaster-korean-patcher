@@ -18,7 +18,6 @@ namespace ImasKoreanPatcher
         private Label isoStatusLabel;
         private Label xexToolStatusLabel;
         private Label titleUpdateStatusLabel;
-        private CheckBox translateXexCheckBox;
         private CheckBox applyTitleUpdateCheckBox;
         private CheckBox doubleAuditionFansCheckBox;
         private CheckBox ensureAuditionPassCountCheckBox;
@@ -33,13 +32,25 @@ namespace ImasKoreanPatcher
         private string selectedTitleUpdatePath;
         private BackgroundWorker patchWorker;
 
+        private sealed class PatchProgressUpdate
+        {
+            public PatchProgressUpdate(string message, bool appendToLog)
+            {
+                Message = message;
+                AppendToLog = appendToLog;
+            }
+
+            public string Message { get; private set; }
+            public bool AppendToLog { get; private set; }
+        }
+
         public MainForm()
         {
             Text = "아이돌마스터 한글 패치";
             Font = new Font("Malgun Gothic", 9F, FontStyle.Regular, GraphicsUnit.Point);
             BackColor = Color.FromArgb(246, 247, 250);
-            MinimumSize = new Size(980, 520);
-            Size = new Size(1080, 580);
+            MinimumSize = new Size(980, 620);
+            Size = new Size(1080, 680);
             StartPosition = FormStartPosition.CenterScreen;
             AllowDrop = true;
 
@@ -56,7 +67,7 @@ namespace ImasKoreanPatcher
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 19F));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 28F));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 124F));
             Controls.Add(root);
 
             dropPanel = BuildDropPanel();
@@ -83,10 +94,13 @@ namespace ImasKoreanPatcher
 
             statusTextBox = new TextBox();
             statusTextBox.Dock = DockStyle.Fill;
-            statusTextBox.BorderStyle = BorderStyle.None;
-            statusTextBox.BackColor = BackColor;
+            statusTextBox.BorderStyle = BorderStyle.FixedSingle;
+            statusTextBox.BackColor = Color.White;
             statusTextBox.ForeColor = Color.FromArgb(65, 72, 86);
             statusTextBox.ReadOnly = true;
+            statusTextBox.Multiline = true;
+            statusTextBox.ScrollBars = ScrollBars.Vertical;
+            statusTextBox.WordWrap = false;
             statusTextBox.ShortcutsEnabled = true;
             statusTextBox.TabStop = true;
             statusTextBox.Text = "대기 중";
@@ -198,13 +212,11 @@ namespace ImasKoreanPatcher
 
             TableLayoutPanel layout = new TableLayoutPanel();
             layout.ColumnCount = 1;
-            layout.RowCount = 13;
+            layout.RowCount = 11;
             layout.Dock = DockStyle.Fill;
             layout.BackColor = BackColor;
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 8F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 16F));
@@ -218,25 +230,12 @@ namespace ImasKoreanPatcher
 
             Label patchOptionsLabel = new Label();
             patchOptionsLabel.Dock = DockStyle.Fill;
-            patchOptionsLabel.Text = "패치 옵션 (xextool.exe 필요)";
+            patchOptionsLabel.Text = "패치 옵션";
             patchOptionsLabel.TextAlign = ContentAlignment.MiddleLeft;
             patchOptionsLabel.Font = new Font(Font.FontFamily, 9F, FontStyle.Bold, GraphicsUnit.Point);
             patchOptionsLabel.ForeColor = Color.FromArgb(34, 42, 54);
             patchOptionsLabel.Margin = new Padding(0);
             layout.Controls.Add(patchOptionsLabel, 0, 1);
-
-            translateXexCheckBox = new CheckBox();
-            translateXexCheckBox.Anchor = AnchorStyles.Left;
-            translateXexCheckBox.AutoSize = true;
-            translateXexCheckBox.Text = "xex 파일 번역";
-            translateXexCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
-            translateXexCheckBox.Margin = new Padding(0);
-            translateXexCheckBox.Enabled = false;
-            layout.Controls.Add(translateXexCheckBox, 0, 2);
-
-            Label translateXexDescription = CreateOptionDescription(
-                "- 아침 메뉴 및 회화시의 캐릭터 이름 칸 등등");
-            layout.Controls.Add(translateXexDescription, 0, 3);
 
             applyTitleUpdateCheckBox = new CheckBox();
             applyTitleUpdateCheckBox.Anchor = AnchorStyles.Left;
@@ -245,11 +244,11 @@ namespace ImasKoreanPatcher
             applyTitleUpdateCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
             applyTitleUpdateCheckBox.Margin = new Padding(0);
             applyTitleUpdateCheckBox.Enabled = false;
-            layout.Controls.Add(applyTitleUpdateCheckBox, 0, 4);
+            layout.Controls.Add(applyTitleUpdateCheckBox, 0, 2);
 
             Label titleUpdateDescription = CreateOptionDescription(
                 "- 타이틀 업데이트가 반영된 ISO를 생성합니다.");
-            layout.Controls.Add(titleUpdateDescription, 0, 5);
+            layout.Controls.Add(titleUpdateDescription, 0, 3);
 
             Label cheatLabel = new Label();
             cheatLabel.Dock = DockStyle.Fill;
@@ -258,7 +257,7 @@ namespace ImasKoreanPatcher
             cheatLabel.Font = new Font(Font.FontFamily, 9F, FontStyle.Bold, GraphicsUnit.Point);
             cheatLabel.ForeColor = Color.FromArgb(34, 42, 54);
             cheatLabel.Margin = new Padding(0);
-            layout.Controls.Add(cheatLabel, 0, 7);
+            layout.Controls.Add(cheatLabel, 0, 5);
 
             doubleAuditionFansCheckBox = new CheckBox();
             doubleAuditionFansCheckBox.Anchor = AnchorStyles.Left;
@@ -266,7 +265,7 @@ namespace ImasKoreanPatcher
             doubleAuditionFansCheckBox.Text = "오디션의 팬 증가량 2배";
             doubleAuditionFansCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
             doubleAuditionFansCheckBox.Margin = new Padding(0);
-            layout.Controls.Add(doubleAuditionFansCheckBox, 0, 8);
+            layout.Controls.Add(doubleAuditionFansCheckBox, 0, 6);
 
             ensureAuditionPassCountCheckBox = new CheckBox();
             ensureAuditionPassCountCheckBox.Anchor = AnchorStyles.Left;
@@ -274,16 +273,16 @@ namespace ImasKoreanPatcher
             ensureAuditionPassCountCheckBox.Text = "오디션의 합격자수 2명이상으로 변경";
             ensureAuditionPassCountCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
             ensureAuditionPassCountCheckBox.Margin = new Padding(0);
-            layout.Controls.Add(ensureAuditionPassCountCheckBox, 0, 9);
+            layout.Controls.Add(ensureAuditionPassCountCheckBox, 0, 7);
 
             specialAudition3AlwaysOpenCheckBox = new CheckBox();
             specialAudition3AlwaysOpenCheckBox.Anchor = AnchorStyles.Left;
             specialAudition3AlwaysOpenCheckBox.AutoSize = true;
-            specialAudition3AlwaysOpenCheckBox.Text = "특별 오디션 3 상시 개방 (xextool.exe 필요)";
+            specialAudition3AlwaysOpenCheckBox.Text = "특별 오디션 3 상시 개방";
             specialAudition3AlwaysOpenCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
             specialAudition3AlwaysOpenCheckBox.Margin = new Padding(0);
             specialAudition3AlwaysOpenCheckBox.Enabled = false;
-            layout.Controls.Add(specialAudition3AlwaysOpenCheckBox, 0, 10);
+            layout.Controls.Add(specialAudition3AlwaysOpenCheckBox, 0, 8);
 
             communicationPerfectCheckBox = new CheckBox();
             communicationPerfectCheckBox.Anchor = AnchorStyles.Left;
@@ -293,7 +292,7 @@ namespace ImasKoreanPatcher
             communicationPerfectCheckBox.Margin = new Padding(0);
             communicationPerfectCheckBox.Visible = ShowCommunicationPerfectCheat;
             communicationPerfectCheckBox.TabStop = ShowCommunicationPerfectCheat;
-            layout.Controls.Add(communicationPerfectCheckBox, 0, 11);
+            layout.Controls.Add(communicationPerfectCheckBox, 0, 9);
 
             return panel;
         }
@@ -421,6 +420,16 @@ namespace ImasKoreanPatcher
                 && String.Equals(Path.GetFileName(path), "xextool.exe", StringComparison.OrdinalIgnoreCase);
         }
 
+        private static string FormatUnsupportedXexToolMessage(string detectedVersion)
+        {
+            if (String.IsNullOrEmpty(detectedVersion))
+            {
+                return "xextool.exe 6.3을 확인할 수 없습니다.";
+            }
+
+            return "xextool.exe 6.3만 지원합니다. 감지된 버전: " + detectedVersion;
+        }
+
         private static bool IsTitleUpdatePath(string path)
         {
             if (String.IsNullOrEmpty(path) || !File.Exists(path) || IsIsoPath(path) || IsXexToolPath(path))
@@ -460,6 +469,7 @@ namespace ImasKoreanPatcher
         private void SelectRelatedFiles(string[] paths)
         {
             int unsupportedCount = 0;
+            string xexToolValidationMessage = null;
             for (int index = 0; index < paths.Length; index++)
             {
                 string path = paths[index];
@@ -469,7 +479,16 @@ namespace ImasKoreanPatcher
                 }
                 else if (IsXexToolPath(path))
                 {
-                    selectedXexToolPath = path;
+                    string detectedVersion;
+                    if (XexToolValidator.IsSupported(path, out detectedVersion))
+                    {
+                        selectedXexToolPath = path;
+                    }
+                    else
+                    {
+                        selectedXexToolPath = null;
+                        xexToolValidationMessage = FormatUnsupportedXexToolMessage(detectedVersion);
+                    }
                 }
                 else if (IsTitleUpdatePath(path))
                 {
@@ -486,7 +505,11 @@ namespace ImasKoreanPatcher
             int readyCount = (IsIsoPath(selectedIsoPath) ? 1 : 0)
                 + (IsXexToolPath(selectedXexToolPath) ? 1 : 0)
                 + (IsTitleUpdatePath(selectedTitleUpdatePath) ? 1 : 0);
-            if (unsupportedCount > 0)
+            if (!String.IsNullOrEmpty(xexToolValidationMessage))
+            {
+                SetStatus(xexToolValidationMessage);
+            }
+            else if (unsupportedCount > 0)
             {
                 SetStatus(String.Format("파일 {0}개 준비됨, 지원하지 않는 파일 {1}개 제외", readyCount, unsupportedCount));
             }
@@ -499,21 +522,12 @@ namespace ImasKoreanPatcher
         private void UpdateFileStatusDisplay()
         {
             SetFileStatus(isoStatusLabel, "(필수) 원본 ISO", selectedIsoPath, true);
-            SetFileStatus(xexToolStatusLabel, "(옵션) xextool.exe", selectedXexToolPath, false);
+            SetFileStatus(xexToolStatusLabel, "(필수) xextool.exe 6.3", selectedXexToolPath, true);
             SetFileStatus(titleUpdateStatusLabel, "(옵션) TU파일", selectedTitleUpdatePath, false);
 
             bool workerBusy = patchWorker != null && patchWorker.IsBusy;
             bool hasXexTool = IsXexToolPath(selectedXexToolPath);
             bool hasTitleUpdate = IsTitleUpdatePath(selectedTitleUpdatePath);
-            if (translateXexCheckBox != null)
-            {
-                translateXexCheckBox.Enabled = hasXexTool && !workerBusy;
-                if (!hasXexTool)
-                {
-                    translateXexCheckBox.Checked = false;
-                }
-            }
-
             if (applyTitleUpdateCheckBox != null)
             {
                 applyTitleUpdateCheckBox.Enabled = hasXexTool && hasTitleUpdate && !workerBusy;
@@ -534,7 +548,7 @@ namespace ImasKoreanPatcher
 
             if (patchButton != null)
             {
-                patchButton.Enabled = IsIsoPath(selectedIsoPath) && !workerBusy;
+                patchButton.Enabled = IsIsoPath(selectedIsoPath) && hasXexTool && !workerBusy;
             }
         }
 
@@ -574,13 +588,14 @@ namespace ImasKoreanPatcher
             string isoPath = selectedIsoPath;
             string xexToolPath = selectedXexToolPath;
             string titleUpdatePath = selectedTitleUpdatePath;
-            bool translateXex = translateXexCheckBox != null && translateXexCheckBox.Checked;
             bool applyTitleUpdate = applyTitleUpdateCheckBox != null && applyTitleUpdateCheckBox.Checked;
             bool unlockSpecialAudition3 = specialAudition3AlwaysOpenCheckBox != null && specialAudition3AlwaysOpenCheckBox.Checked;
-            if ((translateXex || applyTitleUpdate || unlockSpecialAudition3) && !IsXexToolPath(xexToolPath))
+            string detectedXexToolVersion;
+            if (!XexToolValidator.IsSupported(xexToolPath, out detectedXexToolVersion))
             {
-                SetStatus("선택한 패치 옵션을 사용하려면 xextool.exe가 필요합니다.");
+                selectedXexToolPath = null;
                 UpdateFileStatusDisplay();
+                SetStatus(FormatUnsupportedXexToolMessage(detectedXexToolVersion));
                 return;
             }
 
@@ -594,7 +609,6 @@ namespace ImasKoreanPatcher
             bool ensureAuditionPassCount = ensureAuditionPassCountCheckBox != null && ensureAuditionPassCountCheckBox.Checked;
             bool communicationPerfect = ShowCommunicationPerfectCheat && communicationPerfectCheckBox != null && communicationPerfectCheckBox.Checked;
             patchButton.Enabled = false;
-            translateXexCheckBox.Enabled = false;
             applyTitleUpdateCheckBox.Enabled = false;
             doubleAuditionFansCheckBox.Enabled = false;
             ensureAuditionPassCountCheckBox.Enabled = false;
@@ -613,7 +627,6 @@ namespace ImasKoreanPatcher
                     isoPath,
                     xexToolPath,
                     titleUpdatePath,
-                    translateXex,
                     applyTitleUpdate,
                     doubleAuditionFans,
                     ensureAuditionPassCount,
@@ -623,9 +636,10 @@ namespace ImasKoreanPatcher
             patchWorker.ProgressChanged += delegate(object workerSender, ProgressChangedEventArgs progressArgs)
             {
                 progressBar.Value = Math.Max(progressBar.Minimum, Math.Min(progressBar.Maximum, progressArgs.ProgressPercentage));
-                if (progressArgs.UserState is string)
+                PatchProgressUpdate update = progressArgs.UserState as PatchProgressUpdate;
+                if (update != null && update.AppendToLog)
                 {
-                    SetStatus((string)progressArgs.UserState);
+                    AppendStatus(update.Message);
                 }
             };
             patchWorker.RunWorkerCompleted += delegate(object workerSender, RunWorkerCompletedEventArgs completedArgs)
@@ -637,7 +651,7 @@ namespace ImasKoreanPatcher
                 UpdateFileStatusDisplay();
                 if (completedArgs.Error != null)
                 {
-                    SetStatus("오류: " + completedArgs.Error.Message);
+                    AppendStatus("오류: " + completedArgs.Error.Message);
                     return;
                 }
             };
@@ -649,14 +663,13 @@ namespace ImasKoreanPatcher
             string isoPath,
             string xexToolPath,
             string titleUpdatePath,
-            bool translateXex,
             bool applyTitleUpdate,
             bool doubleAuditionFans,
             bool ensureAuditionPassCount,
             bool unlockSpecialAudition3,
             bool communicationPerfect)
         {
-            Report(worker, 8, "입력 ISO 확인 중...");
+            ReportStage(worker, 8, "입력 ISO 확인 중...");
             if (!File.Exists(isoPath))
             {
                 throw new FileNotFoundException("선택한 ISO 파일이 존재하지 않습니다.", isoPath);
@@ -707,7 +720,7 @@ namespace ImasKoreanPatcher
 
             Directory.CreateDirectory(extractRoot);
 
-            Report(worker, 20, "원본 ISO 해제 중...");
+            ReportStage(worker, 20, "원본 ISO 해제 중...");
             RunTool(
                 exisoPath,
                 "-x -d " + QuoteArgument(extractRoot) + " " + QuoteArgument(isoPath),
@@ -721,6 +734,7 @@ namespace ImasKoreanPatcher
             bool titleUpdateApplied = false;
             if (applyTitleUpdate)
             {
+                ReportStage(worker, 27, "타이틀 업데이트 반영 중...");
                 TitleUpdatePatcher.Apply(
                     extractRoot,
                     xexToolPath,
@@ -733,7 +747,7 @@ namespace ImasKoreanPatcher
                 titleUpdateApplied = true;
             }
 
-            Report(worker, 32, "번역/remap 데이터 로드 중...");
+            ReportStage(worker, 32, "번역/remap 데이터 로드 중...");
             var translations = JsonTranslationStore.Load(translationsPath);
             var defaultXexTranslations = JsonTranslationStore.Load(defaultXexTranslationsPath);
             var bxrTranslations = BxrTextTranslationStore.Load(bxrTranslationsPath);
@@ -743,7 +757,7 @@ namespace ImasKoreanPatcher
             remapper.ValidateAll(bxrTranslations.Values);
             XboxTextPatcher textPatcher = new XboxTextPatcher(translations, remapper);
 
-            Report(worker, 35, "해제된 파일에 번역 반영 중...");
+            ReportStage(worker, 35, "게임 텍스트 번역 중...");
             TranslationPatchResult patchResult = textPatcher.PatchExtractedRoot(
                 extractRoot,
                 delegate(int percent, string message)
@@ -773,6 +787,7 @@ namespace ImasKoreanPatcher
             CommunicationPerfectPatchResult communicationPerfectResult = null;
             if (communicationPerfect)
             {
+                ReportStage(worker, 66, "영업 옵션 적용 중...");
                 CommunicationPerfectPatcher communicationPatcher = CommunicationPerfectPatcher.Load(assetRoot);
                 communicationPerfectResult = communicationPatcher.PatchExtractedRoot(
                     extractRoot,
@@ -808,6 +823,7 @@ namespace ImasKoreanPatcher
                 }
             }
 
+            ReportStage(worker, 70, "BXR 번역 중...");
             BxrTextPatcher bxrPatcher = new BxrTextPatcher(bxrTranslations, remapper);
             BxrPatchResult bxrResult = bxrPatcher.PatchExtractedRoot(
                 extractRoot,
@@ -824,6 +840,7 @@ namespace ImasKoreanPatcher
             AuditionFanPatchResult auditionFanResult = null;
             if (doubleAuditionFans || ensureAuditionPassCount)
             {
+                ReportStage(worker, 73, "오디션 옵션 적용 중...");
                 AuditionFanPatcher auditionFanPatcher = new AuditionFanPatcher();
                 auditionFanResult = auditionFanPatcher.PatchExtractedRoot(
                     extractRoot,
@@ -850,6 +867,7 @@ namespace ImasKoreanPatcher
                 }
             }
 
+            ReportStage(worker, 75, "이미지 리소스 적용 중...");
             ImageTexturePatcher imagePatcher = ImageTexturePatcher.Load(assetRoot);
             ImageTexturePatchResult imageResult = imagePatcher.PatchExtractedRoot(
                 extractRoot,
@@ -875,6 +893,37 @@ namespace ImasKoreanPatcher
                         imageResult.Errors));
             }
 
+            ReportStage(worker, 78, "XEX 번역 중...");
+            XexTextPatcher xexPatcher = new XexTextPatcher(defaultXexTranslations, remapper);
+            XexPatchResult xexResult = xexPatcher.PatchExtractedRoot(
+                extractRoot,
+                xexToolPath,
+                workRoot,
+                true,
+                unlockSpecialAudition3,
+                delegate(int percent, string message)
+                {
+                    Report(worker, percent, message);
+                });
+
+            if (unlockSpecialAudition3 &&
+                xexResult.SpecialAudition3GatesPatched == 0 &&
+                xexResult.SpecialAudition3GatesAlreadyPatched == 0)
+            {
+                throw new InvalidOperationException("특별 오디션 3 상시 개방 패치가 반영되지 않았습니다.");
+            }
+
+            ReportStage(worker, 82, "폰트 적용 중...");
+            FontPatchRunner.PatchExtractedRoot(
+                extractRoot,
+                assetRoot,
+                workRoot,
+                delegate(int percent, string message)
+                {
+                    Report(worker, percent, message);
+                });
+
+            ReportStage(worker, 89, "최종 리소스 정리 중...");
             BootLogoInfoPatchResult bootLogoInfoResult = BootLogoInfoPatcher.PatchExtractedRoot(
                 extractRoot,
                 assetRoot,
@@ -885,47 +934,15 @@ namespace ImasKoreanPatcher
 
             if (!bootLogoInfoResult.TargetBnaFound)
             {
-                throw new InvalidOperationException("Boot logo patch target boot.bna was not found.");
+                throw new InvalidOperationException("필수 리소스 파일을 찾을 수 없습니다.");
             }
 
             if (!bootLogoInfoResult.TargetEntryFound)
             {
-                throw new InvalidOperationException("Boot logo patch target logo entries were not found.");
+                throw new InvalidOperationException("필수 리소스 항목을 찾을 수 없습니다.");
             }
 
-            XexPatchResult xexResult = new XexPatchResult();
-            if (translateXex || unlockSpecialAudition3)
-            {
-                XexTextPatcher xexPatcher = new XexTextPatcher(defaultXexTranslations, remapper);
-                xexResult = xexPatcher.PatchExtractedRoot(
-                    extractRoot,
-                    xexToolPath,
-                    workRoot,
-                    translateXex,
-                    unlockSpecialAudition3,
-                    delegate(int percent, string message)
-                    {
-                        Report(worker, percent, message);
-                    });
-
-                if (unlockSpecialAudition3 &&
-                    xexResult.SpecialAudition3GatesPatched == 0 &&
-                    xexResult.SpecialAudition3GatesAlreadyPatched == 0)
-                {
-                    throw new InvalidOperationException("특별 오디션 3 상시 개방 패치가 반영되지 않았습니다.");
-                }
-            }
-
-            FontPatchRunner.PatchExtractedRoot(
-                extractRoot,
-                assetRoot,
-                workRoot,
-                delegate(int percent, string message)
-                {
-                    Report(worker, percent, message);
-                });
-
-            Report(worker, 91, "번역된 파일로 ISO 재생성 중...");
+            ReportStage(worker, 91, "번역된 파일로 ISO 재생성 중...");
             RunTool(
                 exisoPath,
                 "-c " + QuoteArgument(extractRoot) + " " + QuoteArgument(outputIso),
@@ -942,7 +959,7 @@ namespace ImasKoreanPatcher
                 throw new InvalidOperationException("재생성된 ISO 파일 크기가 0입니다.");
             }
 
-            Report(
+            ReportStage(
                 worker,
                 100,
                 String.Format(
@@ -952,7 +969,7 @@ namespace ImasKoreanPatcher
                     imageTexturesChanged,
                     xexResult.StringsPatched,
                     FormatCreditLineSummary(creditLineResult),
-                    FormatBootLogoInfoSummary(bootLogoInfoResult) + FormatCommunicationPerfectSummary(communicationPerfectResult) + FormatAuditionFanSummary(auditionFanResult) + FormatSpecialAudition3Summary(xexResult) + FormatTitleUpdateSummary(titleUpdateApplied),
+                    FormatCommunicationPerfectSummary(communicationPerfectResult) + FormatAuditionFanSummary(auditionFanResult) + FormatSpecialAudition3Summary(xexResult) + FormatTitleUpdateSummary(titleUpdateApplied),
                     outputIso));
         }
 
@@ -1019,26 +1036,6 @@ namespace ImasKoreanPatcher
             if (result.ScoreValuesAlreadyPerfect > 0)
             {
                 return String.Format(", 영업 퍼펙트 이미 적용 {0:N0}개", result.ScoreValuesAlreadyPerfect);
-            }
-
-            return String.Empty;
-        }
-
-        private static string FormatBootLogoInfoSummary(BootLogoInfoPatchResult result)
-        {
-            if (result == null)
-            {
-                return String.Empty;
-            }
-
-            if (result.Changed)
-            {
-                return ", 부트 로고 " + result.VersionText + " 반영";
-            }
-
-            if (result.AlreadyPatched)
-            {
-                return ", 부트 로고 " + result.VersionText + " 이미 적용";
             }
 
             return String.Empty;
@@ -1205,14 +1202,43 @@ namespace ImasKoreanPatcher
 
         private static void Report(BackgroundWorker worker, int percent, string message)
         {
-            worker.ReportProgress(percent, message);
+            worker.ReportProgress(percent, new PatchProgressUpdate(message, false));
+        }
+
+        private static void ReportStage(BackgroundWorker worker, int percent, string message)
+        {
+            worker.ReportProgress(percent, new PatchProgressUpdate(message, true));
         }
 
         private void SetStatus(string message)
         {
             statusTextBox.Text = message;
-            statusTextBox.SelectionStart = 0;
+            statusTextBox.SelectionStart = statusTextBox.TextLength;
             statusTextBox.SelectionLength = 0;
+            statusTextBox.ScrollToCaret();
+        }
+
+        private void AppendStatus(string message)
+        {
+            if (String.IsNullOrEmpty(message))
+            {
+                return;
+            }
+
+            string[] lines = statusTextBox.Lines;
+            if (lines.Length > 0 && String.Equals(lines[lines.Length - 1], message, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            if (statusTextBox.TextLength > 0)
+            {
+                statusTextBox.AppendText(Environment.NewLine);
+            }
+            statusTextBox.AppendText(message);
+            statusTextBox.SelectionStart = statusTextBox.TextLength;
+            statusTextBox.SelectionLength = 0;
+            statusTextBox.ScrollToCaret();
         }
     }
 }

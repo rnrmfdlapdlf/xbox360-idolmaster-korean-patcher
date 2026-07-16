@@ -71,6 +71,7 @@
     <Compile Include="TitleUpdatePatcher.cs" />
     <Compile Include="XexPatchResult.cs" />
     <Compile Include="XexTextPatcher.cs" />
+    <Compile Include="XexToolValidator.cs" />
     <Compile Include="XboxTextPatcher.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

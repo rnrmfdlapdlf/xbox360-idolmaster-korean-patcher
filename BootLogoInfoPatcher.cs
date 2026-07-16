@@ -39,7 +39,7 @@ namespace ImasKoreanPatcher
             BootLogoInfoPatchResult result = new BootLogoInfoPatchResult();
             result.VersionText = BuildVersionText();
 
-            Report(progress, 76, "부트 로고 패치 정보 합성 중...");
+            Report(progress, 76, "리소스 처리 중...");
 
             string bnaPath = Path.Combine(extractedRoot, BootBnaRelativePath.Replace('/', Path.DirectorySeparatorChar));
             if (!File.Exists(bnaPath))
@@ -53,7 +53,7 @@ namespace ImasKoreanPatcher
             string fontPath = Path.Combine(assetRoot, FontRelativePath.Replace('/', Path.DirectorySeparatorChar));
             if (!File.Exists(fontPath))
             {
-                throw new FileNotFoundException("Boot logo patch font was not found.", fontPath);
+                throw new FileNotFoundException("Required font was not found.", fontPath);
             }
 
             bool changed = false;
@@ -75,11 +75,11 @@ namespace ImasKoreanPatcher
             if (result.EntriesPatched == 0 && result.EntriesAlreadyPatched > 0)
             {
                 result.AlreadyPatched = true;
-                Report(progress, 77, "부트 로고 패치 정보 이미 적용됨");
+                Report(progress, 77, "리소스 이미 적용됨");
             }
             else
             {
-                Report(progress, 77, "부트 로고 패치 정보 합성 완료");
+                Report(progress, 77, "리소스 처리 완료");
             }
 
             return result;
@@ -130,14 +130,14 @@ namespace ImasKoreanPatcher
         {
             if (ReadU16(nutBytes, 0x22) != 19)
             {
-                throw new InvalidDataException("Unsupported boot logo NUT pixel type.");
+                throw new InvalidDataException("Unsupported texture pixel type.");
             }
 
             NutTexture texture = NutTexture.Parse(nutBytes);
             NutTexturePage page = texture.GetPage(0);
             if (page == null)
             {
-                throw new InvalidDataException("Boot logo NUT page 0 was not found.");
+                throw new InvalidDataException("Required texture page was not found.");
             }
 
             using (Bitmap bitmap = ReadArgb32Page(nutBytes, page))
@@ -321,7 +321,7 @@ namespace ImasKoreanPatcher
         {
             if (bitmap.Width != page.Width || bitmap.Height != page.Height)
             {
-                throw new InvalidDataException("Boot logo bitmap dimensions changed unexpectedly.");
+                throw new InvalidDataException("Texture dimensions changed unexpectedly.");
             }
 
             int destination = page.DataOffset;
@@ -361,7 +361,7 @@ namespace ImasKoreanPatcher
             if (collection.Families.Length == 0)
             {
                 collection.Dispose();
-                throw new InvalidOperationException("Boot logo patch font did not expose any font families.");
+                throw new InvalidOperationException("Required font did not expose any font families.");
             }
 
             return collection;
@@ -376,18 +376,55 @@ namespace ImasKoreanPatcher
 
         private static string BuildVersionText()
         {
-            DateTime buildDate;
+            DateTime buildDate = DateTime.UtcNow;
             try
             {
                 string assemblyPath = Assembly.GetExecutingAssembly().Location;
-                buildDate = File.Exists(assemblyPath) ? File.GetLastWriteTime(assemblyPath) : DateTime.Now;
+                if (File.Exists(assemblyPath))
+                {
+                    buildDate = ReadBuildDateUtc(assemblyPath);
+                }
             }
             catch
             {
-                buildDate = DateTime.Now;
             }
 
             return "한글패치 v" + buildDate.ToString("yyMMdd", CultureInfo.InvariantCulture);
+        }
+
+        private static DateTime ReadBuildDateUtc(string assemblyPath)
+        {
+            DateTime fallback = File.GetLastWriteTimeUtc(assemblyPath);
+            using (FileStream stream = File.OpenRead(assemblyPath))
+            using (BinaryReader reader = new BinaryReader(stream))
+            {
+                if (stream.Length < 0x40)
+                {
+                    return fallback;
+                }
+
+                stream.Position = 0x3C;
+                int peHeaderOffset = reader.ReadInt32();
+                if (peHeaderOffset < 0 || peHeaderOffset + 12 > stream.Length)
+                {
+                    return fallback;
+                }
+
+                stream.Position = peHeaderOffset;
+                if (reader.ReadUInt32() != 0x00004550U)
+                {
+                    return fallback;
+                }
+
+                stream.Position = peHeaderOffset + 8;
+                uint seconds = reader.ReadUInt32();
+                if (seconds == 0)
+                {
+                    return fallback;
+                }
+
+                return new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(seconds);
+            }
         }
 
         private static int ReadU16(byte[] data, int offset)

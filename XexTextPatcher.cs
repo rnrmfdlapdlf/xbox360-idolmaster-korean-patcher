@@ -167,11 +167,11 @@ namespace ImasKoreanPatcher
             }
 
             byte[] data = File.ReadAllBytes(decryptedPath);
-            Report(progress, 78, "부트 로고 표시 영역 패치 중...");
+            Report(progress, 78, "default.xex 레이아웃 패치 중...");
             PatchBootLogoProjectHeight(data, result);
             if (result.BootLogoLayoutPatched == 0 && result.BootLogoLayoutAlreadyPatched == 0)
             {
-                throw new InvalidDataException("Boot logo layout was not found in default.xex.");
+                throw new InvalidDataException("Required layout was not found in default.xex.");
             }
 
             if (patchText)
@@ -274,7 +274,7 @@ namespace ImasKoreanPatcher
             offset = FindPattern(data, BootLogoProjectHeightSharedPattern);
             if (offset >= 0)
             {
-                offset = FindUniquePattern(data, BootLogoProjectHeightSharedPattern, "boot logo project height");
+                offset = FindUniquePattern(data, BootLogoProjectHeightSharedPattern, "required project height");
                 Buffer.BlockCopy(BootLogoProjectHeight512, 0, data, offset, BootLogoProjectHeight512.Length);
                 result.BootLogoLayoutPatched++;
                 return;
@@ -283,7 +283,7 @@ namespace ImasKoreanPatcher
             offset = FindPattern(data, BootLogoProjectHeight384SharedPattern);
             if (offset >= 0)
             {
-                offset = FindUniquePattern(data, BootLogoProjectHeight384SharedPattern, "boot logo project height 384");
+                offset = FindUniquePattern(data, BootLogoProjectHeight384SharedPattern, "required project height 384");
                 Buffer.BlockCopy(BootLogoProjectHeight512, 0, data, offset, BootLogoProjectHeight512.Length);
                 result.BootLogoLayoutPatched++;
                 return;
@@ -297,7 +297,7 @@ namespace ImasKoreanPatcher
 
             if (FindPattern(data, BootLogoProjectHeight512SharedPattern) >= 0)
             {
-                FindUniquePattern(data, BootLogoProjectHeight512SharedPattern, "patched boot logo project height");
+                FindUniquePattern(data, BootLogoProjectHeight512SharedPattern, "patched required project height");
                 result.BootLogoLayoutAlreadyPatched++;
             }
         }
