@@ -134,11 +134,11 @@ namespace ImasKoreanPatcher
 
         private static char NormalizeDisplayChar(char ch)
         {
-            // The Xbox font exposes its full-width tilde glyph as U+007E.
-            // U+FF5E has no NFH record and therefore renders as an empty glyph.
-            if (ch == '\uFF5E')
+            // Dialogue text must use U+FF5E. The game routes it to the U+007E
+            // NFH glyph slot; a literal U+007E advances but is not drawn.
+            if (ch == '~')
             {
-                return '~';
+                return '\uFF5E';
             }
 
             if (ch == '\u00B7')
