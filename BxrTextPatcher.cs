@@ -9,10 +9,10 @@ namespace ImasKoreanPatcher
     {
         private const int MaxStringBytes = 4096;
 
-        private readonly Dictionary<string, string> translations;
+        private readonly Dictionary<string, BxrTextTranslation> translations;
         private readonly HangulRemapper remapper;
 
-        public BxrTextPatcher(Dictionary<string, string> translations, HangulRemapper remapper)
+        public BxrTextPatcher(Dictionary<string, BxrTextTranslation> translations, HangulRemapper remapper)
         {
             this.translations = translations;
             this.remapper = remapper;
@@ -69,6 +69,7 @@ namespace ImasKoreanPatcher
             }
 
             BnaContainer bna = BnaContainer.Parse(original);
+            bool isLessonBna = IsLessonBnaPath(path);
             bool changed = false;
 
             List<BnaContainerEntry> entries = bna.Entries;
@@ -81,7 +82,7 @@ namespace ImasKoreanPatcher
                 }
 
                 result.BxrFilesScanned++;
-                BxrEntryPatch entryPatch = PatchBxr(entry.Data, result);
+                BxrEntryPatch entryPatch = PatchBxr(entry.Data, isLessonBna, result);
                 if (entryPatch.Changed)
                 {
                     entry.Data = entryPatch.Data;
@@ -97,7 +98,7 @@ namespace ImasKoreanPatcher
             }
         }
 
-        private BxrEntryPatch PatchBxr(byte[] data, BxrPatchResult result)
+        private BxrEntryPatch PatchBxr(byte[] data, bool isLessonBna, BxrPatchResult result)
         {
             int poolBase;
             int oldPoolSize;
@@ -148,8 +149,14 @@ namespace ImasKoreanPatcher
                 result.CandidateStringsScanned++;
 
                 string textId = BxrTextTranslationStore.ComputeTextId(candidate.Text);
-                string koText;
-                if (!translations.TryGetValue(textId, out koText))
+                BxrTextTranslation translation;
+                if (!translations.TryGetValue(textId, out translation))
+                {
+                    continue;
+                }
+
+                string koText = SelectKoText(translation, isLessonBna);
+                if (String.IsNullOrEmpty(koText))
                 {
                     continue;
                 }
@@ -188,6 +195,33 @@ namespace ImasKoreanPatcher
 
             byte[] rebuilt = RebuildBxr(data, poolBase, oldPoolSize, replacements, result);
             return new BxrEntryPatch(true, rebuilt);
+        }
+
+        private static string SelectKoText(BxrTextTranslation translation, bool isLessonBna)
+        {
+            if (!isLessonBna)
+            {
+                return translation.KoText;
+            }
+
+            if (!String.IsNullOrEmpty(translation.KoTextLesson))
+            {
+                return translation.KoTextLesson;
+            }
+
+            if (!String.IsNullOrEmpty(translation.KoText) && translation.KoText.Length > 15)
+            {
+                return translation.KoText.Substring(0, 15);
+            }
+
+            return translation.KoText;
+        }
+
+        private static bool IsLessonBnaPath(string path)
+        {
+            string normalized = path.Replace('\\', '/');
+            return normalized.StartsWith("root/scene/produce/lesson/", StringComparison.OrdinalIgnoreCase)
+                || normalized.IndexOf("/root/scene/produce/lesson/", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static byte[] RebuildBxr(byte[] data, int poolBase, int oldPoolSize, List<Replacement> replacements, BxrPatchResult result)

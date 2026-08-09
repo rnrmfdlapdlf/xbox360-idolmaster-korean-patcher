@@ -45,6 +45,8 @@
     <Compile Include="MainForm.cs" />
     <Compile Include="AuditionFanPatchResult.cs" />
     <Compile Include="AuditionFanPatcher.cs" />
+    <Compile Include="LessonGainPatchResult.cs" />
+    <Compile Include="LessonGainPatcher.cs" />
     <Compile Include="CommunicationPerfectPatchResult.cs" />
     <Compile Include="CommunicationPerfectPatcher.cs" />
     <Compile Include="CreditLinePatchResult.cs" />

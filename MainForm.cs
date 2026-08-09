@@ -21,6 +21,7 @@ namespace ImasKoreanPatcher
         private CheckBox applyTitleUpdateCheckBox;
         private CheckBox doubleAuditionFansCheckBox;
         private CheckBox ensureAuditionPassCountCheckBox;
+        private CheckBox doubleLessonGainsCheckBox;
         private CheckBox specialAudition3AlwaysOpenCheckBox;
         private CheckBox communicationPerfectCheckBox;
         private Button patchButton;
@@ -212,7 +213,7 @@ namespace ImasKoreanPatcher
 
             TableLayoutPanel layout = new TableLayoutPanel();
             layout.ColumnCount = 1;
-            layout.RowCount = 11;
+            layout.RowCount = 12;
             layout.Dock = DockStyle.Fill;
             layout.BackColor = BackColor;
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 8F));
@@ -223,6 +224,7 @@ namespace ImasKoreanPatcher
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, ShowCommunicationPerfectCheat ? 34F : 0F));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
@@ -275,6 +277,14 @@ namespace ImasKoreanPatcher
             ensureAuditionPassCountCheckBox.Margin = new Padding(0);
             layout.Controls.Add(ensureAuditionPassCountCheckBox, 0, 7);
 
+            doubleLessonGainsCheckBox = new CheckBox();
+            doubleLessonGainsCheckBox.Anchor = AnchorStyles.Left;
+            doubleLessonGainsCheckBox.AutoSize = true;
+            doubleLessonGainsCheckBox.Text = "레슨의 능력치 상승 2배";
+            doubleLessonGainsCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
+            doubleLessonGainsCheckBox.Margin = new Padding(0);
+            layout.Controls.Add(doubleLessonGainsCheckBox, 0, 8);
+
             specialAudition3AlwaysOpenCheckBox = new CheckBox();
             specialAudition3AlwaysOpenCheckBox.Anchor = AnchorStyles.Left;
             specialAudition3AlwaysOpenCheckBox.AutoSize = true;
@@ -282,7 +292,7 @@ namespace ImasKoreanPatcher
             specialAudition3AlwaysOpenCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
             specialAudition3AlwaysOpenCheckBox.Margin = new Padding(0);
             specialAudition3AlwaysOpenCheckBox.Enabled = false;
-            layout.Controls.Add(specialAudition3AlwaysOpenCheckBox, 0, 8);
+            layout.Controls.Add(specialAudition3AlwaysOpenCheckBox, 0, 9);
 
             communicationPerfectCheckBox = new CheckBox();
             communicationPerfectCheckBox.Anchor = AnchorStyles.Left;
@@ -292,7 +302,7 @@ namespace ImasKoreanPatcher
             communicationPerfectCheckBox.Margin = new Padding(0);
             communicationPerfectCheckBox.Visible = ShowCommunicationPerfectCheat;
             communicationPerfectCheckBox.TabStop = ShowCommunicationPerfectCheat;
-            layout.Controls.Add(communicationPerfectCheckBox, 0, 9);
+            layout.Controls.Add(communicationPerfectCheckBox, 0, 10);
 
             return panel;
         }
@@ -607,11 +617,13 @@ namespace ImasKoreanPatcher
 
             bool doubleAuditionFans = doubleAuditionFansCheckBox != null && doubleAuditionFansCheckBox.Checked;
             bool ensureAuditionPassCount = ensureAuditionPassCountCheckBox != null && ensureAuditionPassCountCheckBox.Checked;
+            bool doubleLessonGains = doubleLessonGainsCheckBox != null && doubleLessonGainsCheckBox.Checked;
             bool communicationPerfect = ShowCommunicationPerfectCheat && communicationPerfectCheckBox != null && communicationPerfectCheckBox.Checked;
             patchButton.Enabled = false;
             applyTitleUpdateCheckBox.Enabled = false;
             doubleAuditionFansCheckBox.Enabled = false;
             ensureAuditionPassCountCheckBox.Enabled = false;
+            doubleLessonGainsCheckBox.Enabled = false;
             specialAudition3AlwaysOpenCheckBox.Enabled = false;
             communicationPerfectCheckBox.Enabled = false;
             dropPanel.Enabled = false;
@@ -630,6 +642,7 @@ namespace ImasKoreanPatcher
                     applyTitleUpdate,
                     doubleAuditionFans,
                     ensureAuditionPassCount,
+                    doubleLessonGains,
                     unlockSpecialAudition3,
                     communicationPerfect);
             };
@@ -647,6 +660,7 @@ namespace ImasKoreanPatcher
                 dropPanel.Enabled = true;
                 doubleAuditionFansCheckBox.Enabled = true;
                 ensureAuditionPassCountCheckBox.Enabled = true;
+                doubleLessonGainsCheckBox.Enabled = true;
                 communicationPerfectCheckBox.Enabled = ShowCommunicationPerfectCheat;
                 UpdateFileStatusDisplay();
                 if (completedArgs.Error != null)
@@ -666,6 +680,7 @@ namespace ImasKoreanPatcher
             bool applyTitleUpdate,
             bool doubleAuditionFans,
             bool ensureAuditionPassCount,
+            bool doubleLessonGains,
             bool unlockSpecialAudition3,
             bool communicationPerfect)
         {
@@ -754,7 +769,7 @@ namespace ImasKoreanPatcher
             HangulRemapper remapper = HangulRemapper.Load(remapPath);
             remapper.ValidateAll(translations.Values);
             remapper.ValidateAll(defaultXexTranslations.Values);
-            remapper.ValidateAll(bxrTranslations.Values);
+            remapper.ValidateAll(BxrTextTranslationStore.EnumerateTranslationTexts(bxrTranslations.Values));
             XboxTextPatcher textPatcher = new XboxTextPatcher(translations, remapper);
 
             ReportStage(worker, 35, "게임 텍스트 번역 중...");
@@ -835,6 +850,29 @@ namespace ImasKoreanPatcher
             if (bxrTranslations.Count > 0 && bxrResult.StringsPatched == 0)
             {
                 throw new InvalidOperationException("BXR에 반영된 문자열이 0개입니다.");
+            }
+
+            LessonGainPatchResult lessonGainResult = null;
+            if (doubleLessonGains)
+            {
+                ReportStage(worker, 72, "레슨 능력치 상승 2배 적용 중...");
+                LessonGainPatcher lessonGainPatcher = new LessonGainPatcher();
+                lessonGainResult = lessonGainPatcher.PatchExtractedRoot(
+                    extractRoot,
+                    delegate(int percent, string message)
+                    {
+                        Report(worker, percent, message);
+                    });
+
+                if (!lessonGainResult.TargetBnaFound || lessonGainResult.TargetBxrEntriesSeen != 1)
+                {
+                    throw new InvalidOperationException("레슨 능력치 패치 대상을 찾을 수 없습니다.");
+                }
+
+                if (lessonGainResult.NonzeroValuesPatched == 0 && lessonGainResult.NonzeroValuesAlreadyPatched == 0)
+                {
+                    throw new InvalidOperationException("레슨 능력치 상승 2배에 반영된 필드가 0개입니다.");
+                }
             }
 
             AuditionFanPatchResult auditionFanResult = null;
@@ -942,6 +980,11 @@ namespace ImasKoreanPatcher
                 throw new InvalidOperationException("필수 리소스 항목을 찾을 수 없습니다.");
             }
 
+            if (!bootLogoInfoResult.EndingEntriesFound)
+            {
+                throw new InvalidOperationException("엔딩 패치 정보 로고 항목을 찾을 수 없습니다.");
+            }
+
             ReportStage(worker, 91, "번역된 파일로 ISO 재생성 중...");
             RunTool(
                 exisoPath,
@@ -959,6 +1002,9 @@ namespace ImasKoreanPatcher
                 throw new InvalidOperationException("재생성된 ISO 파일 크기가 0입니다.");
             }
 
+            ReportStage(worker, 99, "임시 작업 폴더 정리 중...");
+            DeleteTemporaryWorkDirectory(workRoot, isoDirectory, baseName + "_patcher_work");
+
             ReportStage(
                 worker,
                 100,
@@ -969,8 +1015,86 @@ namespace ImasKoreanPatcher
                     imageTexturesChanged,
                     xexResult.StringsPatched,
                     FormatCreditLineSummary(creditLineResult),
-                    FormatCommunicationPerfectSummary(communicationPerfectResult) + FormatAuditionFanSummary(auditionFanResult) + FormatSpecialAudition3Summary(xexResult) + FormatTitleUpdateSummary(titleUpdateApplied),
+                    FormatCommunicationPerfectSummary(communicationPerfectResult) + FormatAuditionFanSummary(auditionFanResult) + FormatLessonGainSummary(lessonGainResult) + FormatSpecialAudition3Summary(xexResult) + FormatTitleUpdateSummary(titleUpdateApplied),
                     outputIso));
+        }
+
+        internal static void DeleteTemporaryWorkDirectory(string workRoot, string isoDirectory, string expectedName)
+        {
+            string fullWorkRoot = new DirectoryInfo(Path.GetFullPath(workRoot)).FullName;
+            string fullIsoDirectory = new DirectoryInfo(Path.GetFullPath(isoDirectory)).FullName;
+            DirectoryInfo workDirectory = new DirectoryInfo(fullWorkRoot);
+            if (!workDirectory.Exists)
+            {
+                return;
+            }
+
+            DirectoryInfo parent = workDirectory.Parent;
+            if (parent == null || !String.Equals(parent.FullName, fullIsoDirectory, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("임시 작업 폴더가 ISO 폴더 바로 아래에 있지 않습니다.");
+            }
+
+            if (!IsTemporaryWorkDirectoryName(workDirectory.Name, expectedName))
+            {
+                throw new InvalidOperationException("임시 작업 폴더 이름이 예상한 형식과 다릅니다.");
+            }
+
+            EnsureDirectoryTreeHasNoReparsePoints(workDirectory.FullName);
+            Directory.Delete(workDirectory.FullName, true);
+        }
+
+        private static bool IsTemporaryWorkDirectoryName(string name, string expectedName)
+        {
+            if (String.Equals(name, expectedName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            string numberedPrefix = expectedName + "_";
+            if (!name.StartsWith(numberedPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            string suffix = name.Substring(numberedPrefix.Length);
+            if (suffix.Length == 0)
+            {
+                return false;
+            }
+
+            for (int index = 0; index < suffix.Length; index++)
+            {
+                if (!Char.IsDigit(suffix[index]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static void EnsureDirectoryTreeHasNoReparsePoints(string directoryPath)
+        {
+            if ((File.GetAttributes(directoryPath) & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new IOException("임시 작업 폴더에 재분석 지점이 있어 안전하게 삭제할 수 없습니다.");
+            }
+
+            string[] entries = Directory.GetFileSystemEntries(directoryPath);
+            for (int index = 0; index < entries.Length; index++)
+            {
+                FileAttributes attributes = File.GetAttributes(entries[index]);
+                if ((attributes & FileAttributes.ReparsePoint) != 0)
+                {
+                    throw new IOException("임시 작업 폴더에 재분석 지점이 있어 안전하게 삭제할 수 없습니다.");
+                }
+
+                if ((attributes & FileAttributes.Directory) != 0)
+                {
+                    EnsureDirectoryTreeHasNoReparsePoints(entries[index]);
+                }
+            }
         }
 
         private static void ValidateCreditLinePatch(CreditLinePatchResult result)
@@ -1068,6 +1192,26 @@ namespace ImasKoreanPatcher
             }
 
             return builder.ToString();
+        }
+
+        private static string FormatLessonGainSummary(LessonGainPatchResult result)
+        {
+            if (result == null)
+            {
+                return String.Empty;
+            }
+
+            if (result.NonzeroValuesPatched > 0)
+            {
+                return String.Format(", 레슨 능력치 상승 2배 {0:N0}개 반영", result.NonzeroValuesPatched);
+            }
+
+            if (result.NonzeroValuesAlreadyPatched > 0)
+            {
+                return String.Format(", 레슨 능력치 상승 2배 이미 적용 {0:N0}개", result.NonzeroValuesAlreadyPatched);
+            }
+
+            return String.Empty;
         }
 
         private static string FormatSpecialAudition3Summary(XexPatchResult result)

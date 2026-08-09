@@ -33,6 +33,19 @@ namespace ImasKoreanPatcher
             return glyphs[recordIndex];
         }
 
+        public NfhGlyph FindGlyph(char character)
+        {
+            for (int index = 0; index < glyphs.Count; index++)
+            {
+                if (glyphs[index].Character == character)
+                {
+                    return glyphs[index];
+                }
+            }
+
+            return null;
+        }
+
         public static NfhFont Parse(byte[] data)
         {
             if (data.Length < 16 || data[0] != (byte)'N' || data[1] != (byte)'F' || data[2] != (byte)'H' || data[3] != 0)
@@ -89,11 +102,19 @@ namespace ImasKoreanPatcher
         public int PageIndex { get { return fields[1]; } }
         public int X { get { return fields[2]; } }
         public int Y { get { return fields[3]; } }
+        public int BitmapX { get { return X + (int)Math.Round(ToSigned(fields[4]) / 64.0); } }
+        public int BitmapWidth { get { return Math.Max(1, (int)Math.Round(ToSigned(fields[5]) / 64.0)); } }
+        public int BitmapHeight { get { return Math.Max(1, (int)Math.Round(ToSigned(fields[6]) / 64.0)); } }
         public int Codepoint { get { return fields[11]; } }
 
         public char Character
         {
             get { return (char)Codepoint; }
+        }
+
+        private static short ToSigned(ushort value)
+        {
+            return unchecked((short)value);
         }
     }
 }

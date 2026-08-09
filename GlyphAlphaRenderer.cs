@@ -52,6 +52,52 @@ namespace ImasKoreanPatcher
             }
         }
 
+        public static byte[] RenderCenteredTilde(int width, int height)
+        {
+            const int scale = 8;
+            int scaledWidth = width * scale;
+            int scaledHeight = height * scale;
+
+            using (Bitmap large = new Bitmap(scaledWidth, scaledHeight, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
+            using (Graphics graphics = Graphics.FromImage(large))
+            using (Pen pen = new Pen(Color.White, 2.2f * scale))
+            {
+                graphics.Clear(Color.Transparent);
+                graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                pen.StartCap = LineCap.Round;
+                pen.EndCap = LineCap.Round;
+                pen.LineJoin = LineJoin.Round;
+
+                float x0 = 1.5f;
+                float x1 = Math.Min(width - 2.0f, 17.0f);
+                float centerY = height * 0.40f;
+                const float amplitude = 2.8f;
+                int steps = Math.Max(12, (int)((x1 - x0) * 2.0f));
+                PointF[] points = new PointF[steps + 1];
+                for (int step = 0; step <= steps; step++)
+                {
+                    double t = (double)step / steps;
+                    float x = x0 + (x1 - x0) * (float)t;
+                    float y = centerY + (float)Math.Sin(t * Math.PI * 2.0) * amplitude;
+                    points[step] = new PointF(x * scale, y * scale);
+                }
+
+                graphics.DrawLines(pen, points);
+
+                using (Bitmap cell = new Bitmap(width, height, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
+                using (Graphics cellGraphics = Graphics.FromImage(cell))
+                {
+                    cellGraphics.Clear(Color.Transparent);
+                    cellGraphics.CompositingMode = CompositingMode.SourceCopy;
+                    cellGraphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    cellGraphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                    cellGraphics.DrawImage(large, new Rectangle(0, 0, width, height));
+                    return BitmapToAlpha(cell);
+                }
+            }
+        }
+
         public void Dispose()
         {
             fontCollection.Dispose();

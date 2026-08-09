@@ -81,6 +81,11 @@ namespace ImasKoreanPatcher
             0xC1, 0x40, 0x00, 0x00
         };
         private static readonly byte[] BootLogoProjectHeight512 = new byte[] { 0x44, 0x00, 0x00, 0x00 };
+        private const int EndingProjectLogoHeightOffset = 8;
+        private const int EndingProjectLogoLayoutCount = 2;
+        private static readonly byte[] EndingProjectLogoName = Encoding.ASCII.GetBytes("project_imas_hd.nut\0");
+        private static readonly byte[] EndingProjectLogoWidth816 = new byte[] { 0x44, 0x4C, 0x00, 0x00 };
+        private static readonly byte[] EndingProjectLogoHeight248 = new byte[] { 0x43, 0x78, 0x00, 0x00 };
 
         // The audition category menu checks online status only when the selected category index is 5 (Special 3).
         // Jumping directly to the common selection path leaves the game's global online state and offline battle path unchanged.
@@ -173,6 +178,8 @@ namespace ImasKoreanPatcher
             {
                 throw new InvalidDataException("Required layout was not found in default.xex.");
             }
+
+            PatchEndingProjectLogoHeight(data, result);
 
             if (patchText)
             {
@@ -302,6 +309,47 @@ namespace ImasKoreanPatcher
             }
         }
 
+        private static void PatchEndingProjectLogoHeight(byte[] data, XexPatchResult result)
+        {
+            int nameOffset = FindUniquePattern(data, EndingProjectLogoName, "ending project logo name");
+            uint nameRuntimeAddress = FileOffsetToRuntimeAddress(data, nameOffset);
+            byte[] originalPattern = BuildEndingProjectLogoLayoutPattern(nameRuntimeAddress, EndingProjectLogoHeight248);
+            byte[] patchedPattern = BuildEndingProjectLogoLayoutPattern(nameRuntimeAddress, BootLogoProjectHeight512);
+            List<int> originalOffsets = FindAllPatternOffsets(data, originalPattern);
+            List<int> patchedOffsets = FindAllPatternOffsets(data, patchedPattern);
+            if (originalOffsets.Count + patchedOffsets.Count != EndingProjectLogoLayoutCount)
+            {
+                throw new InvalidDataException(
+                    String.Format(
+                        "Expected {0} ending project logo layouts in default.xex, found {1} original and {2} patched.",
+                        EndingProjectLogoLayoutCount,
+                        originalOffsets.Count,
+                        patchedOffsets.Count));
+            }
+
+            for (int index = 0; index < originalOffsets.Count; index++)
+            {
+                Buffer.BlockCopy(
+                    BootLogoProjectHeight512,
+                    0,
+                    data,
+                    originalOffsets[index] + EndingProjectLogoHeightOffset,
+                    BootLogoProjectHeight512.Length);
+            }
+
+            result.EndingLogoLayoutsPatched += originalOffsets.Count;
+            result.EndingLogoLayoutsAlreadyPatched += patchedOffsets.Count;
+        }
+
+        private static byte[] BuildEndingProjectLogoLayoutPattern(uint nameRuntimeAddress, byte[] height)
+        {
+            byte[] pattern = new byte[12];
+            WriteU32Be(pattern, 0, nameRuntimeAddress);
+            Buffer.BlockCopy(EndingProjectLogoWidth816, 0, pattern, 4, EndingProjectLogoWidth816.Length);
+            Buffer.BlockCopy(height, 0, pattern, 8, height.Length);
+            return pattern;
+        }
+
         private static int FindPattern(byte[] data, byte[] pattern)
         {
             if (pattern.Length == 0 || data.Length < pattern.Length)
@@ -328,6 +376,36 @@ namespace ImasKoreanPatcher
             }
 
             return -1;
+        }
+
+        private static List<int> FindAllPatternOffsets(byte[] data, byte[] pattern)
+        {
+            List<int> offsets = new List<int>();
+            if (pattern.Length == 0 || data.Length < pattern.Length)
+            {
+                return offsets;
+            }
+
+            for (int offset = 0; offset <= data.Length - pattern.Length; offset++)
+            {
+                bool matched = true;
+                for (int index = 0; index < pattern.Length; index++)
+                {
+                    if (data[offset + index] != pattern[index])
+                    {
+                        matched = false;
+                        break;
+                    }
+                }
+
+                if (matched)
+                {
+                    offsets.Add(offset);
+                    offset += pattern.Length - 1;
+                }
+            }
+
+            return offsets;
         }
 
         private void PatchUtf16BeStrings(byte[] data, XexPatchResult result)
@@ -559,6 +637,14 @@ namespace ImasKoreanPatcher
         {
             data[offset] = (byte)(value >> 8);
             data[offset + 1] = (byte)value;
+        }
+
+        private static void WriteU32Be(byte[] data, int offset, uint value)
+        {
+            data[offset] = (byte)(value >> 24);
+            data[offset + 1] = (byte)(value >> 16);
+            data[offset + 2] = (byte)(value >> 8);
+            data[offset + 3] = (byte)value;
         }
 
         private static bool TryReadCandidate(byte[] data, int offset, out CandidateString candidate)

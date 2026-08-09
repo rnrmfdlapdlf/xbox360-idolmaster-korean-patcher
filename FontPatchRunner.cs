@@ -79,12 +79,14 @@ namespace ImasKoreanPatcher
                     AlphaBounds donorBounds = AlphaBitmap.GetBounds(donorCell, CellWidth, CellHeight);
                     byte[] rendered = renderer.RenderCell(entry.Render, CellWidth, CellHeight, entry.RenderXAdjust, entry.RenderYAdjust);
                     byte[] aligned = AlphaBitmap.AlignToDonorBounds(rendered, CellWidth, CellHeight, donorBounds, entry.PlacementXAdjust, entry.PlacementYAdjust);
-                    pendingDraws.Add(new PendingGlyphDraw(page, x, y, aligned));
+                    pendingDraws.Add(new PendingGlyphDraw(page, x, y, CellWidth, CellHeight, aligned));
                     guardRects.Add(new GuardRect(page, x - CellGuardClear, y - CellGuardClear, x + CellWidth + CellGuardClear, y + CellHeight + CellGuardClear));
                     AddDirtyBlocks(GetDirtyBlocks(page.Index, dirtyBlocks), page, x - CellGuardClear, y - CellGuardClear, CellWidth + CellGuardClear * 2, CellHeight + CellGuardClear * 2);
                     AlphaBitmap.PasteToPage(alpha, page.Width, x, y, CellWidth, CellHeight, aligned);
                 }
             }
+
+            AddCenteredTildePatch(output, nfh, texture, alphaPages, dirtyBlocks, pendingDraws);
 
             if (pendingDraws.Count == 0)
             {
@@ -102,7 +104,7 @@ namespace ImasKoreanPatcher
             {
                 PendingGlyphDraw draw = pendingDraws[index];
                 byte[] alpha = GetAlphaPage(output, draw.Page, alphaPages);
-                AlphaBitmap.PasteToPage(alpha, draw.Page.Width, draw.X, draw.Y, CellWidth, CellHeight, draw.Alpha);
+                AlphaBitmap.PasteToPage(alpha, draw.Page.Width, draw.X, draw.Y, draw.Width, draw.Height, draw.Alpha);
             }
 
             foreach (KeyValuePair<int, byte[]> pageAlpha in alphaPages)
@@ -112,6 +114,42 @@ namespace ImasKoreanPatcher
             }
 
             return output;
+        }
+
+        private static void AddCenteredTildePatch(
+            byte[] output,
+            NfhFont nfh,
+            NutTexture texture,
+            Dictionary<int, byte[]> alphaPages,
+            Dictionary<int, HashSet<int>> dirtyBlocks,
+            List<PendingGlyphDraw> pendingDraws)
+        {
+            NfhGlyph glyph = nfh.FindGlyph('~');
+            if (glyph == null)
+            {
+                throw new InvalidDataException("The Xbox font does not contain the U+007E tilde glyph.");
+            }
+
+            NutTexturePage page = texture.GetPage(glyph.PageIndex);
+            if (page == null)
+            {
+                throw new InvalidDataException("The Xbox font tilde glyph references a missing texture page.");
+            }
+
+            int x = glyph.BitmapX;
+            int y = glyph.Y;
+            int width = glyph.BitmapWidth;
+            int height = glyph.BitmapHeight;
+            if (x < 0 || y < 0 || x + width > page.Width || y + height > page.Height)
+            {
+                throw new InvalidDataException("The Xbox font tilde glyph is outside its texture page.");
+            }
+
+            byte[] centeredTilde = GlyphAlphaRenderer.RenderCenteredTilde(width, height);
+            byte[] alpha = GetAlphaPage(output, page, alphaPages);
+            pendingDraws.Add(new PendingGlyphDraw(page, x, y, width, height, centeredTilde));
+            AddDirtyBlocks(GetDirtyBlocks(page.Index, dirtyBlocks), page, x, y, width, height);
+            AlphaBitmap.PasteToPage(alpha, page.Width, x, y, width, height, centeredTilde);
         }
 
         private static byte[] GetAlphaPage(byte[] nutData, NutTexturePage page, Dictionary<int, byte[]> alphaPages)
@@ -175,13 +213,17 @@ namespace ImasKoreanPatcher
             public readonly NutTexturePage Page;
             public readonly int X;
             public readonly int Y;
+            public readonly int Width;
+            public readonly int Height;
             public readonly byte[] Alpha;
 
-            public PendingGlyphDraw(NutTexturePage page, int x, int y, byte[] alpha)
+            public PendingGlyphDraw(NutTexturePage page, int x, int y, int width, int height, byte[] alpha)
             {
                 Page = page;
                 X = x;
                 Y = y;
+                Width = width;
+                Height = height;
                 Alpha = alpha;
             }
         }

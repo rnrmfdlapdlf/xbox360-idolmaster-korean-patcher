@@ -9,6 +9,8 @@ namespace ImasKoreanPatcher
         public int RelocatedStringsPatched;
         public int BootLogoLayoutPatched;
         public int BootLogoLayoutAlreadyPatched;
+        public int EndingLogoLayoutsPatched;
+        public int EndingLogoLayoutsAlreadyPatched;
         public int SpecialAudition3GatesPatched;
         public int SpecialAudition3GatesAlreadyPatched;
         public int ReplacementsTooLong;

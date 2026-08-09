@@ -11,9 +11,9 @@ namespace ImasKoreanPatcher
         private const string IdPrefix = "BXR-TEXT-";
         private const string HashSalt = "BXR_TEXT_V1\0";
 
-        public static Dictionary<string, string> Load(string path)
+        public static Dictionary<string, BxrTextTranslation> Load(string path)
         {
-            Dictionary<string, string> translations = new Dictionary<string, string>(StringComparer.Ordinal);
+            Dictionary<string, BxrTextTranslation> translations = new Dictionary<string, BxrTextTranslation>(StringComparer.Ordinal);
 
             using (StreamReader reader = new StreamReader(path, Encoding.UTF8, true))
             {
@@ -28,8 +28,9 @@ namespace ImasKoreanPatcher
                     }
 
                     string textId = JsonTranslationStore.TryReadStringProperty(line, "text_id");
-                    string koText = JsonTranslationStore.TryReadStringProperty(line, "ko_text");
-                    if (String.IsNullOrEmpty(koText))
+                    string koText = JsonTranslationStore.TryReadStringProperty(line, "ko_text") ?? String.Empty;
+                    string koTextLesson = JsonTranslationStore.TryReadStringProperty(line, "ko_text_lesson") ?? String.Empty;
+                    if (String.IsNullOrEmpty(koText) && String.IsNullOrEmpty(koTextLesson))
                     {
                         continue;
                     }
@@ -53,10 +54,11 @@ namespace ImasKoreanPatcher
                         }
                     }
 
-                    string existing;
+                    BxrTextTranslation row = new BxrTextTranslation(koText, koTextLesson);
+                    BxrTextTranslation existing;
                     if (translations.TryGetValue(textId, out existing))
                     {
-                        if (!String.Equals(existing, koText, StringComparison.Ordinal))
+                        if (!existing.HasSameText(row))
                         {
                             throw new InvalidDataException("Conflicting BXR translation for text_id at line " + lineNumber.ToString() + ".");
                         }
@@ -64,11 +66,27 @@ namespace ImasKoreanPatcher
                         continue;
                     }
 
-                    translations[textId] = koText;
+                    translations[textId] = row;
                 }
             }
 
             return translations;
+        }
+
+        public static IEnumerable<string> EnumerateTranslationTexts(IEnumerable<BxrTextTranslation> translations)
+        {
+            foreach (BxrTextTranslation translation in translations)
+            {
+                if (!String.IsNullOrEmpty(translation.KoText))
+                {
+                    yield return translation.KoText;
+                }
+
+                if (!String.IsNullOrEmpty(translation.KoTextLesson))
+                {
+                    yield return translation.KoTextLesson;
+                }
+            }
         }
 
         internal static string ComputeTextId(string jpText)
@@ -86,6 +104,25 @@ namespace ImasKoreanPatcher
 
                 return builder.ToString();
             }
+        }
+    }
+
+    internal sealed class BxrTextTranslation
+    {
+        public readonly string KoText;
+        public readonly string KoTextLesson;
+
+        public BxrTextTranslation(string koText, string koTextLesson)
+        {
+            KoText = koText ?? String.Empty;
+            KoTextLesson = koTextLesson ?? String.Empty;
+        }
+
+        public bool HasSameText(BxrTextTranslation other)
+        {
+            return other != null
+                && String.Equals(KoText, other.KoText, StringComparison.Ordinal)
+                && String.Equals(KoTextLesson, other.KoTextLesson, StringComparison.Ordinal);
         }
     }
 }

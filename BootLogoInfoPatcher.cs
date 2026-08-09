@@ -14,6 +14,11 @@ namespace ImasKoreanPatcher
         private const string BootBnaRelativePath = "root/scene/boot/boot.bna";
         private const string ProjectLogoEntryPath = "root/scene/boot/common/project_logo.nut";
         private const string NtscLogoEntryPath = "root/scene/boot/common/swg_logo_pro_imas_ntsc.nut";
+        private const string EndingConcertAfterBnaRelativePath = "root/scene/produce/ending/ed_concert_after/ed_concert_after.bna";
+        private const string EndingConcertAfterLogoEntryPath = "root/scene/produce/ending/ed_concert_after/project_imas_hd.nut";
+        private const string EndingRollBnaRelativePath = "root/scene/produce/ending/ed_roll_role/ed_roll_role.bna";
+        private const string EndingRollLogoEntryPath = "root/scene/produce/ending/ed_roll_role/project_imas_hd.nut";
+        private const int EndingLogoTargetCount = 2;
         private const string FontRelativePath = "Fonts/title_Medium.ttf";
         private const string CreditText = "by Gideon";
         private const int ProjectLogoCanvasWidth = 816;
@@ -32,6 +37,8 @@ namespace ImasKoreanPatcher
         private const float ScreenLineGap = 3.0f;
         private const float ScreenClearPaddingX = 18.0f;
         private const float ScreenClearPaddingY = 6.0f;
+        private const int EndingReservedHeaderOffset = 0x28;
+        private const int EndingReservedHeaderLength = 8;
         private static readonly Color PatchTextColor = Color.FromArgb(0x22, 0x22, 0x22);
 
         public static BootLogoInfoPatchResult PatchExtractedRoot(string extractedRoot, string assetRoot, Action<int, string> progress)
@@ -60,7 +67,8 @@ namespace ImasKoreanPatcher
             changed |= PatchEntry(bna, ProjectLogoEntryPath, fontPath, result, BootLogoPatchMode.ProjectLogoCanvas);
             changed |= PatchEntry(bna, NtscLogoEntryPath, fontPath, result, BootLogoPatchMode.NtscScreen);
 
-            if (result.TargetEntriesSeen == 0)
+            int bootEntriesSeen = result.TargetEntriesSeen;
+            if (bootEntriesSeen == 0)
             {
                 result.TargetEntryFound = false;
                 return result;
@@ -71,6 +79,20 @@ namespace ImasKoreanPatcher
             {
                 File.WriteAllBytes(bnaPath, bna.Rebuild());
             }
+
+            PatchEndingLogo(
+                extractedRoot,
+                EndingConcertAfterBnaRelativePath,
+                EndingConcertAfterLogoEntryPath,
+                fontPath,
+                result);
+            PatchEndingLogo(
+                extractedRoot,
+                EndingRollBnaRelativePath,
+                EndingRollLogoEntryPath,
+                fontPath,
+                result);
+            result.EndingEntriesFound = result.EndingEntriesSeen == EndingLogoTargetCount;
 
             if (result.EntriesPatched == 0 && result.EntriesAlreadyPatched > 0)
             {
@@ -83,6 +105,35 @@ namespace ImasKoreanPatcher
             }
 
             return result;
+        }
+
+        private static void PatchEndingLogo(
+            string extractedRoot,
+            string bnaRelativePath,
+            string entryPath,
+            string fontPath,
+            BootLogoInfoPatchResult result)
+        {
+            string bnaPath = Path.Combine(extractedRoot, bnaRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(bnaPath))
+            {
+                return;
+            }
+
+            result.EndingBnaFilesSeen++;
+            BnaContainer bna = BnaContainer.Parse(File.ReadAllBytes(bnaPath));
+            int entriesBefore = result.TargetEntriesSeen;
+            bool changed = PatchEntry(bna, entryPath, fontPath, result, BootLogoPatchMode.EndingProjectLogoCanvas);
+            if (result.TargetEntriesSeen == entriesBefore)
+            {
+                return;
+            }
+
+            result.EndingEntriesSeen++;
+            if (changed)
+            {
+                File.WriteAllBytes(bnaPath, bna.Rebuild());
+            }
         }
 
         private static bool PatchEntry(BnaContainer bna, string entryPath, string fontPath, BootLogoInfoPatchResult result, BootLogoPatchMode mode)
@@ -128,7 +179,8 @@ namespace ImasKoreanPatcher
 
         private static byte[] PatchNut(byte[] nutBytes, string versionText, string creditText, string fontPath, BootLogoPatchMode mode)
         {
-            if (ReadU16(nutBytes, 0x22) != 19)
+            int expectedPixelType = mode == BootLogoPatchMode.EndingProjectLogoCanvas ? 1 : 19;
+            if (ReadU16(nutBytes, 0x22) != expectedPixelType)
             {
                 throw new InvalidDataException("Unsupported texture pixel type.");
             }
@@ -140,14 +192,36 @@ namespace ImasKoreanPatcher
                 throw new InvalidDataException("Required texture page was not found.");
             }
 
-            using (Bitmap bitmap = ReadArgb32Page(nutBytes, page))
+            if (mode == BootLogoPatchMode.EndingProjectLogoCanvas)
             {
-                if (mode == BootLogoPatchMode.ProjectLogoCanvas)
+                if (page.Width != ProjectLogoCanvasWidth ||
+                    (page.Height != ProjectLogoBaseHeight && page.Height != ProjectLogoCanvasHeight))
+                {
+                    throw new InvalidDataException("Unexpected ending project logo dimensions.");
+                }
+
+                if (page.Height == ProjectLogoCanvasHeight)
+                {
+                    byte[] normalized = new byte[nutBytes.Length];
+                    Buffer.BlockCopy(nutBytes, 0, normalized, 0, nutBytes.Length);
+                    Array.Clear(normalized, EndingReservedHeaderOffset, EndingReservedHeaderLength);
+                    return normalized;
+                }
+            }
+
+            using (Bitmap bitmap = mode == BootLogoPatchMode.EndingProjectLogoCanvas
+                ? ReadDxt3Page(nutBytes, page)
+                : ReadArgb32Page(nutBytes, page))
+            {
+                if (mode == BootLogoPatchMode.ProjectLogoCanvas ||
+                    mode == BootLogoPatchMode.EndingProjectLogoCanvas)
                 {
                     using (Bitmap canvas = CreateProjectLogoCanvas(bitmap))
                     {
                         DrawProjectLogoPatchInfo(canvas, versionText, creditText, fontPath);
-                        return BuildArgb32Nut(nutBytes, page.DataOffset, canvas);
+                        return mode == BootLogoPatchMode.EndingProjectLogoCanvas
+                            ? BuildDxt3Nut(nutBytes, page.DataOffset, canvas)
+                            : BuildArgb32Nut(nutBytes, page.DataOffset, canvas);
                     }
                 }
 
@@ -317,6 +391,26 @@ namespace ImasKoreanPatcher
             return bitmap;
         }
 
+        private static Bitmap ReadDxt3Page(byte[] data, NutTexturePage page)
+        {
+            byte[] rgba = Bc3Dxt3Codec.DecodeDxt3Rgba(data, page.DataOffset, page.Width, page.Height);
+            Bitmap bitmap = new Bitmap(page.Width, page.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            int source = 0;
+            for (int y = 0; y < page.Height; y++)
+            {
+                for (int x = 0; x < page.Width; x++)
+                {
+                    bitmap.SetPixel(
+                        x,
+                        y,
+                        Color.FromArgb(rgba[source + 3], rgba[source], rgba[source + 1], rgba[source + 2]));
+                    source += 4;
+                }
+            }
+
+            return bitmap;
+        }
+
         private static void WriteArgb32Page(byte[] data, NutTexturePage page, Bitmap bitmap)
         {
             if (bitmap.Width != page.Width || bitmap.Height != page.Height)
@@ -351,6 +445,37 @@ namespace ImasKoreanPatcher
 
             NutTexturePage outputPage = new NutTexturePage(0, dataOffset, dataBytes, bitmap.Width, bitmap.Height);
             WriteArgb32Page(output, outputPage, bitmap);
+            return output;
+        }
+
+        private static byte[] BuildDxt3Nut(byte[] sourceNut, int dataOffset, Bitmap bitmap)
+        {
+            int dataBytes = checked(bitmap.Width * bitmap.Height);
+            byte[] output = new byte[checked(dataOffset + dataBytes)];
+            Buffer.BlockCopy(sourceNut, 0, output, 0, dataOffset);
+            WriteU32(output, 0x10, checked((uint)(dataBytes + dataOffset - 0x10)));
+            WriteU32(output, 0x18, checked((uint)dataBytes));
+            WriteU16(output, 0x22, 1);
+            WriteU16(output, 0x24, bitmap.Width);
+            WriteU16(output, 0x26, bitmap.Height);
+            Array.Clear(output, EndingReservedHeaderOffset, EndingReservedHeaderLength);
+
+            byte[] rgba = new byte[checked(bitmap.Width * bitmap.Height * 4)];
+            int destination = 0;
+            for (int y = 0; y < bitmap.Height; y++)
+            {
+                for (int x = 0; x < bitmap.Width; x++)
+                {
+                    Color pixel = bitmap.GetPixel(x, y);
+                    rgba[destination] = pixel.R;
+                    rgba[destination + 1] = pixel.G;
+                    rgba[destination + 2] = pixel.B;
+                    rgba[destination + 3] = pixel.A;
+                    destination += 4;
+                }
+            }
+
+            Bc3Dxt3Codec.EncodeDxt3Rgba(output, dataOffset, bitmap.Width, bitmap.Height, rgba);
             return output;
         }
 
@@ -476,6 +601,7 @@ namespace ImasKoreanPatcher
     internal enum BootLogoPatchMode
     {
         ProjectLogoCanvas,
+        EndingProjectLogoCanvas,
         NtscScreen
     }
 
@@ -488,6 +614,9 @@ namespace ImasKoreanPatcher
         public int TargetEntriesSeen;
         public int EntriesPatched;
         public int EntriesAlreadyPatched;
+        public int EndingBnaFilesSeen;
+        public int EndingEntriesSeen;
+        public bool EndingEntriesFound;
         public string VersionText;
     }
 }
