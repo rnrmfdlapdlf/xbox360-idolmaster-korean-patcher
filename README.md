@@ -5,14 +5,15 @@
 XBOX 360으로 발매된 THE iDOLM@STER의 한글패치를 제공하는 프로그램입니다.
 
 ## 샘플 이미지
-![Sample 1](samples/sample1.jpg)
-
-![Sample 2](samples/sample2.jpg)
-
-![Sample 3](samples/sample3.jpg)
+<p align="center">
+  <img src="samples/sample1.jpg" width="49%">
+  <img src="samples/sample2.jpg" width="49%"><br>
+  <img src="samples/sample3.jpg" width="49%">
+  <img src="samples/sample4.jpg" width="49%">
+</p>
 
 ## 지원되는 기능
-* 대부분의 일본어 텍스트 및 일본어 이미지 한글로 교체
+* 일본어 텍스트 및 대부분의 일본어 이미지 한글로 교체
 * XEX 파일 번역 및 타이틀 업데이트 반영
 * 치트 옵션 제공
   * 온라인 전용 특별 오디션3 상시 개방
@@ -31,11 +32,25 @@ XBOX 360으로 발매된 THE iDOLM@STER의 한글패치를 제공하는 프로�
 * 아이마스 일반판 ISO or 플래티넘판 ISO
 * `xextool.exe` 6.3 버전 [다운로드](https://digiex.net/threads/xextool-6-3-download.9523/)
 
-## 미번역 리스트
-* 가사 레슨의 가사
-* 라이브시의 노래 가사
-* 레슨의 임시휴업/성공/실패 등 배경에 그라데이션이 들어간 버튼
-* 기타 미발견 데이터들
+## 패치 계획
+* 커뮤니케이션 검수 / 메일 검수 / 아이도라 DLC 순으로 진행됩니다.
+* 검수는 미키부터 시작하여 역순으로 진행됩니다.
+
+| 캐릭터 | 커뮤니케이션 검수 | 메일 검수 |
+|---|:---:|:---:|
+| 미키(각성전) | ✓ | — |
+| 미키(각성후) | ✓ | — |
+| 아미 | ✓ | — |
+| 마코토 | ✓ | — |
+| 이오리 | ✓ | — |
+| 아즈사 | ✓ | — |
+| 리츠코 | — | — |
+| 야요이 | — | — |
+| 유키호 | — | — |
+| 치하야 | — | — |
+| 하루카 | — | — |
+
+
 
 ## 다운로드
 **[릴리즈 페이지](../../releases)** 에서 다운로드하세요.
