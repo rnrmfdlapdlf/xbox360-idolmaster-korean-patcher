@@ -116,7 +116,7 @@ namespace ImasKoreanPatcher
 
         public XexPatchResult PatchExtractedRoot(string extractedRoot, string xexToolPath, string workRoot, Action<int, string> progress)
         {
-            return PatchExtractedRoot(extractedRoot, xexToolPath, workRoot, true, false, progress);
+            return PatchExtractedRoot(extractedRoot, xexToolPath, workRoot, true, false, false, progress);
         }
 
         public XexPatchResult PatchExtractedRoot(
@@ -127,16 +127,35 @@ namespace ImasKoreanPatcher
             bool unlockSpecialAudition3,
             Action<int, string> progress)
         {
+            return PatchExtractedRoot(
+                extractedRoot,
+                xexToolPath,
+                workRoot,
+                patchText,
+                unlockSpecialAudition3,
+                false,
+                progress);
+        }
+
+        public XexPatchResult PatchExtractedRoot(
+            string extractedRoot,
+            string xexToolPath,
+            string workRoot,
+            bool patchText,
+            bool unlockSpecialAudition3,
+            bool addActivityStopMenu,
+            Action<int, string> progress)
+        {
             XexPatchResult result = new XexPatchResult();
             result.TranslationRows = patchText ? translations.Count : 0;
-            if (!patchText && !unlockSpecialAudition3)
+            if (!patchText && !unlockSpecialAudition3 && !addActivityStopMenu)
             {
                 return result;
             }
 
             if (patchText && translations.Count == 0)
             {
-                if (!unlockSpecialAudition3)
+                if (!unlockSpecialAudition3 && !addActivityStopMenu)
                 {
                     return result;
                 }
@@ -198,16 +217,25 @@ namespace ImasKoreanPatcher
                 PatchSpecialAudition3Availability(data, result);
             }
 
+            if (addActivityStopMenu)
+            {
+                Report(progress, 79, "활동 중단 메뉴 추가 중...");
+                ActivityStopMenuPatchResult activityStopResult = ActivityStopMenuPatcher.Patch(data, remapper);
+                result.ActivityStopMenusPatched = activityStopResult.MenusPatched;
+                result.ActivityStopMenusAlreadyPatched = activityStopResult.MenusAlreadyPatched;
+            }
+
             File.WriteAllBytes(defaultXexPath, data);
-            if (unlockSpecialAudition3)
+            if (unlockSpecialAudition3 || addActivityStopMenu)
             {
                 Report(
                     progress,
                     80,
                     String.Format(
-                        "default.xex 패치 완료: {0:N0}개 문자열, 특별 오디션 3 {1:N0}개",
+                        "default.xex 패치 완료: {0:N0}개 문자열, 특별 오디션 3 {1:N0}개, 활동 중단 메뉴 {2:N0}개",
                         result.StringsPatched,
-                        result.SpecialAudition3GatesPatched));
+                        result.SpecialAudition3GatesPatched,
+                        result.ActivityStopMenusPatched));
             }
             else
             {

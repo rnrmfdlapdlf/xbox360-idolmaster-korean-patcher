@@ -43,6 +43,8 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="MainForm.cs" />
+    <Compile Include="ActivityStopMenuPatchResult.cs" />
+    <Compile Include="ActivityStopMenuPatcher.cs" />
     <Compile Include="AuditionFanPatchResult.cs" />
     <Compile Include="AuditionFanPatcher.cs" />
     <Compile Include="LessonGainPatchResult.cs" />

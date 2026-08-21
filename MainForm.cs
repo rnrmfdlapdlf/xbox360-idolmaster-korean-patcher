@@ -23,6 +23,7 @@ namespace ImasKoreanPatcher
         private CheckBox ensureAuditionPassCountCheckBox;
         private CheckBox doubleLessonGainsCheckBox;
         private CheckBox specialAudition3AlwaysOpenCheckBox;
+        private CheckBox activityStopMenuCheckBox;
         private CheckBox communicationPerfectCheckBox;
         private Button patchButton;
         private ProgressBar progressBar;
@@ -213,7 +214,7 @@ namespace ImasKoreanPatcher
 
             TableLayoutPanel layout = new TableLayoutPanel();
             layout.ColumnCount = 1;
-            layout.RowCount = 12;
+            layout.RowCount = 13;
             layout.Dock = DockStyle.Fill;
             layout.BackColor = BackColor;
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 8F));
@@ -224,6 +225,7 @@ namespace ImasKoreanPatcher
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, ShowCommunicationPerfectCheat ? 34F : 0F));
@@ -294,6 +296,15 @@ namespace ImasKoreanPatcher
             specialAudition3AlwaysOpenCheckBox.Enabled = false;
             layout.Controls.Add(specialAudition3AlwaysOpenCheckBox, 0, 9);
 
+            activityStopMenuCheckBox = new CheckBox();
+            activityStopMenuCheckBox.Anchor = AnchorStyles.Left;
+            activityStopMenuCheckBox.AutoSize = true;
+            activityStopMenuCheckBox.Text = "활동 중단 메뉴 추가";
+            activityStopMenuCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
+            activityStopMenuCheckBox.Margin = new Padding(0);
+            activityStopMenuCheckBox.Enabled = false;
+            layout.Controls.Add(activityStopMenuCheckBox, 0, 10);
+
             communicationPerfectCheckBox = new CheckBox();
             communicationPerfectCheckBox.Anchor = AnchorStyles.Left;
             communicationPerfectCheckBox.AutoSize = true;
@@ -302,7 +313,7 @@ namespace ImasKoreanPatcher
             communicationPerfectCheckBox.Margin = new Padding(0);
             communicationPerfectCheckBox.Visible = ShowCommunicationPerfectCheat;
             communicationPerfectCheckBox.TabStop = ShowCommunicationPerfectCheat;
-            layout.Controls.Add(communicationPerfectCheckBox, 0, 10);
+            layout.Controls.Add(communicationPerfectCheckBox, 0, 11);
 
             return panel;
         }
@@ -556,6 +567,15 @@ namespace ImasKoreanPatcher
                 }
             }
 
+            if (activityStopMenuCheckBox != null)
+            {
+                activityStopMenuCheckBox.Enabled = hasXexTool && !workerBusy;
+                if (!hasXexTool)
+                {
+                    activityStopMenuCheckBox.Checked = false;
+                }
+            }
+
             if (patchButton != null)
             {
                 patchButton.Enabled = IsIsoPath(selectedIsoPath) && hasXexTool && !workerBusy;
@@ -600,6 +620,7 @@ namespace ImasKoreanPatcher
             string titleUpdatePath = selectedTitleUpdatePath;
             bool applyTitleUpdate = applyTitleUpdateCheckBox != null && applyTitleUpdateCheckBox.Checked;
             bool unlockSpecialAudition3 = specialAudition3AlwaysOpenCheckBox != null && specialAudition3AlwaysOpenCheckBox.Checked;
+            bool addActivityStopMenu = activityStopMenuCheckBox != null && activityStopMenuCheckBox.Checked;
             string detectedXexToolVersion;
             if (!XexToolValidator.IsSupported(xexToolPath, out detectedXexToolVersion))
             {
@@ -625,6 +646,7 @@ namespace ImasKoreanPatcher
             ensureAuditionPassCountCheckBox.Enabled = false;
             doubleLessonGainsCheckBox.Enabled = false;
             specialAudition3AlwaysOpenCheckBox.Enabled = false;
+            activityStopMenuCheckBox.Enabled = false;
             communicationPerfectCheckBox.Enabled = false;
             dropPanel.Enabled = false;
             progressBar.Value = 0;
@@ -644,6 +666,7 @@ namespace ImasKoreanPatcher
                     ensureAuditionPassCount,
                     doubleLessonGains,
                     unlockSpecialAudition3,
+                    addActivityStopMenu,
                     communicationPerfect);
             };
             patchWorker.ProgressChanged += delegate(object workerSender, ProgressChangedEventArgs progressArgs)
@@ -682,6 +705,7 @@ namespace ImasKoreanPatcher
             bool ensureAuditionPassCount,
             bool doubleLessonGains,
             bool unlockSpecialAudition3,
+            bool addActivityStopMenu,
             bool communicationPerfect)
         {
             ReportStage(worker, 8, "입력 ISO 확인 중...");
@@ -939,6 +963,7 @@ namespace ImasKoreanPatcher
                 workRoot,
                 true,
                 unlockSpecialAudition3,
+                addActivityStopMenu,
                 delegate(int percent, string message)
                 {
                     Report(worker, percent, message);
@@ -949,6 +974,13 @@ namespace ImasKoreanPatcher
                 xexResult.SpecialAudition3GatesAlreadyPatched == 0)
             {
                 throw new InvalidOperationException("특별 오디션 3 상시 개방 패치가 반영되지 않았습니다.");
+            }
+
+            if (addActivityStopMenu &&
+                xexResult.ActivityStopMenusPatched == 0 &&
+                xexResult.ActivityStopMenusAlreadyPatched == 0)
+            {
+                throw new InvalidOperationException("활동 중단 메뉴 패치가 반영되지 않았습니다.");
             }
 
             ReportStage(worker, 82, "폰트 적용 중...");
@@ -1015,7 +1047,7 @@ namespace ImasKoreanPatcher
                     imageTexturesChanged,
                     xexResult.StringsPatched,
                     FormatCreditLineSummary(creditLineResult),
-                    FormatCommunicationPerfectSummary(communicationPerfectResult) + FormatAuditionFanSummary(auditionFanResult) + FormatLessonGainSummary(lessonGainResult) + FormatSpecialAudition3Summary(xexResult) + FormatTitleUpdateSummary(titleUpdateApplied),
+                    FormatCommunicationPerfectSummary(communicationPerfectResult) + FormatAuditionFanSummary(auditionFanResult) + FormatLessonGainSummary(lessonGainResult) + FormatSpecialAudition3Summary(xexResult) + FormatActivityStopMenuSummary(xexResult) + FormatTitleUpdateSummary(titleUpdateApplied),
                     outputIso));
         }
 
@@ -1229,6 +1261,26 @@ namespace ImasKoreanPatcher
             if (result.SpecialAudition3GatesAlreadyPatched > 0)
             {
                 return ", 특별 오디션 3 이미 상시 개방";
+            }
+
+            return String.Empty;
+        }
+
+        private static string FormatActivityStopMenuSummary(XexPatchResult result)
+        {
+            if (result == null)
+            {
+                return String.Empty;
+            }
+
+            if (result.ActivityStopMenusPatched > 0)
+            {
+                return ", 활동 중단 메뉴 추가";
+            }
+
+            if (result.ActivityStopMenusAlreadyPatched > 0)
+            {
+                return ", 활동 중단 메뉴 이미 적용";
             }
 
             return String.Empty;

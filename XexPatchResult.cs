@@ -13,6 +13,8 @@ namespace ImasKoreanPatcher
         public int EndingLogoLayoutsAlreadyPatched;
         public int SpecialAudition3GatesPatched;
         public int SpecialAudition3GatesAlreadyPatched;
+        public int ActivityStopMenusPatched;
+        public int ActivityStopMenusAlreadyPatched;
         public int ReplacementsTooLong;
         public int MissingRemapErrors;
     }
