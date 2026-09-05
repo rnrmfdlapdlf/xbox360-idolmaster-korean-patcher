@@ -9,36 +9,67 @@ namespace ImasKoreanPatcher
     {
         private const string ActivityStopText = "활동중단";
         private const int ActivityStopStringOffsetFromAnchor = 0x100;
-        private const int ActivityStopResultTrampolineOffset = 0x483B44;
-        private const int ActivityStopCloseTrampolineOffset = 0x483B80;
         private const int ActivityStopCodeCaveGuardSize = 0x100;
         private const int ActivityStopWeekIndex = 0x34;
         private const int ActivityStopMenuResult = 3;
         private const int KeepCurrentMenuResult = 2;
         private const int OfficeMorningReentryResult = 0x18;
-        private const int ExpectedCaveAnchorOffset = 0x6AEB0;
-        private const int ExpectedWeekMenuOffset = 0x29F73C;
-        private const int ExpectedWeekMenuResultTailOffset = 0x29F7DC;
-        private const int ExpectedWeekMenuCloseOffset = 0x29F7E8;
-        private const int ExpectedWeekMenuCloseCompleteOffset = 0x29F810;
-        private const int ExpectedGetActiveProduceDataOffset = 0x235450;
-        private const uint ExpectedActivityStopStringAddress = 0x82068FB0;
-        private const uint XexCodeFileToGuestBias = 0x82006000;
-        private const int XexCodeFileStart = 0xDA000;
-        private const int XexCodeFileEnd = 0x48A000;
 
         private static readonly byte[] MakotoCaveAnchorPattern = ParseHex(
             "deadbeef0020481100000000000000001ae00000000002570000000000800000");
         private static readonly byte[] GetActiveProduceDataPrefix = ParseHex(
             "8143001c812315c42b0a0000419a002c816300203d003dd3");
-        private static readonly byte[] OriginalWeekMenuCode = ParseHex(
+        private static readonly byte[] OriginalBaseWeekMenuCode = ParseHex(
             "3d608204807e03f838e0ffff38cb48c43d60820438ab48b43d608204388b48a0" +
+            "81630000816b004c7d6903a64e800421");
+        private static readonly byte[] OriginalTitleUpdateWeekMenuCode = ParseHex(
+            "3d608204807e03f838e0ffff38cb52a43d60820438ab52943d608204388b5280" +
             "81630000816b004c7d6903a64e800421");
         private static readonly byte[] OriginalWeekMenuResultTail = ParseHex(
             "39600009907e066c480034d4");
         private static readonly byte[] OriginalWeekMenuClose = ParseHex(
             "807e03f8817e00402b0b000081630000419a1a08816b00787d6903a64e800421" +
             "2b030000419a34bc480034a4");
+
+        private static readonly PatchLayout BaseLayout = new PatchLayout(
+            "원본판 v0.0.0.1",
+            0x6AEB0,
+            0x29F73C,
+            0x29F7DC,
+            0x29F7E8,
+            0x29F810,
+            0x235450,
+            -0x840,
+            0x483B44,
+            0x483B80,
+            0x82068FB0,
+            0x820448C4,
+            0x820448B4,
+            0x820448A0,
+            0x82006000,
+            0xDA000,
+            0x48A000,
+            OriginalBaseWeekMenuCode);
+
+        private static readonly PatchLayout TitleUpdateLayout = new PatchLayout(
+            "타이틀 업데이트판 v0.0.2.1",
+            0x6B9C0,
+            0x2A207C,
+            0x2A211C,
+            0x2A2128,
+            0x2A2150,
+            0x236448,
+            -0x6C0,
+            0x48736C,
+            0x4873A8,
+            0x82069AC0,
+            0x820452A4,
+            0x82045294,
+            0x82045280,
+            0x82006000,
+            0xDA000,
+            0x48A000,
+            OriginalTitleUpdateWeekMenuCode);
 
         public static ActivityStopMenuPatchResult Patch(byte[] data, HangulRemapper remapper)
         {
@@ -53,6 +84,7 @@ namespace ImasKoreanPatcher
             }
 
             ActivityStopMenuPatchResult result = new ActivityStopMenuPatchResult();
+            PatchLayout layout = DetectLayout(data);
             string donorText = remapper.Apply(ActivityStopText);
             byte[] encodedText = Encoding.BigEndianUnicode.GetBytes(donorText);
             byte[] stringPayload = new byte[encodedText.Length + 2];
@@ -62,30 +94,27 @@ namespace ImasKoreanPatcher
                 throw new InvalidDataException("활동중단 문자열은 NUL을 포함해 10바이트여야 합니다.");
             }
 
-            int caveAnchorOffset = FindUniquePattern(data, MakotoCaveAnchorPattern, "Makoto/data cave anchor");
-            if (caveAnchorOffset != ExpectedCaveAnchorOffset)
-            {
-                throw UnexpectedOffset("Makoto/data cave anchor", caveAnchorOffset, ExpectedCaveAnchorOffset);
-            }
-
-            int stringOffset = caveAnchorOffset + ActivityStopStringOffsetFromAnchor;
-            byte[] fourItemMenuCode = BuildFourItemMenuCode(ExpectedActivityStopStringAddress);
-            byte[] resultTrampoline = BuildResultTrampoline();
-            byte[] closeTrampoline = BuildCloseTrampoline();
+            int stringOffset = layout.CaveAnchorOffset + ActivityStopStringOffsetFromAnchor;
+            byte[] fourItemMenuCode = BuildFourItemMenuCode(
+                layout,
+                layout.OriginalWeekMenuCode.Length);
+            byte[] resultTrampoline = BuildResultTrampoline(layout);
+            byte[] closeTrampoline = BuildCloseTrampoline(layout);
             byte[] resultHook = BuildBranch(
-                CodeFileOffsetToGuest(ExpectedWeekMenuResultTailOffset),
-                CodeFileOffsetToGuest(ActivityStopResultTrampolineOffset),
+                CodeFileOffsetToGuest(layout, layout.WeekMenuResultTailOffset),
+                CodeFileOffsetToGuest(layout, layout.ResultTrampolineOffset),
                 false);
             byte[] closeHook = BuildBranch(
-                CodeFileOffsetToGuest(ExpectedWeekMenuCloseCompleteOffset),
-                CodeFileOffsetToGuest(ActivityStopCloseTrampolineOffset),
+                CodeFileOffsetToGuest(layout, layout.WeekMenuCloseCompleteOffset),
+                CodeFileOffsetToGuest(layout, layout.CloseTrampolineOffset),
                 false);
 
-            int originalMenuOffset = FindPattern(data, OriginalWeekMenuCode);
+            int originalMenuOffset = FindPattern(data, layout.OriginalWeekMenuCode);
             if (originalMenuOffset < 0)
             {
                 ValidateAlreadyPatched(
                     data,
+                    layout,
                     stringOffset,
                     stringPayload,
                     fourItemMenuCode,
@@ -97,63 +126,67 @@ namespace ImasKoreanPatcher
                 return result;
             }
 
-            originalMenuOffset = FindUniquePattern(data, OriginalWeekMenuCode, "week-start three-item menu code");
-            if (originalMenuOffset != ExpectedWeekMenuOffset)
+            originalMenuOffset = FindUniquePattern(
+                data,
+                layout.OriginalWeekMenuCode,
+                layout.Name + " week-start three-item menu code");
+            if (originalMenuOffset != layout.WeekMenuOffset)
             {
-                throw UnexpectedOffset("week-start menu", originalMenuOffset, ExpectedWeekMenuOffset);
+                throw UnexpectedOffset("week-start menu", originalMenuOffset, layout.WeekMenuOffset);
             }
 
             int resultTailOffset = FindUniquePattern(
                 data,
                 OriginalWeekMenuResultTail,
                 "week-start menu result tail");
-            if (resultTailOffset != ExpectedWeekMenuResultTailOffset)
+            if (resultTailOffset != layout.WeekMenuResultTailOffset)
             {
                 throw UnexpectedOffset(
                     "week-start menu result tail",
                     resultTailOffset,
-                    ExpectedWeekMenuResultTailOffset);
+                    layout.WeekMenuResultTailOffset);
             }
 
             int menuCloseOffset = FindUniquePattern(data, OriginalWeekMenuClose, "week-start menu close sequence");
-            if (menuCloseOffset != ExpectedWeekMenuCloseOffset)
+            if (menuCloseOffset != layout.WeekMenuCloseOffset)
             {
-                throw UnexpectedOffset("week-start menu close", menuCloseOffset, ExpectedWeekMenuCloseOffset);
+                throw UnexpectedOffset("week-start menu close", menuCloseOffset, layout.WeekMenuCloseOffset);
             }
 
             int menuCloseCompleteOffset = menuCloseOffset + OriginalWeekMenuClose.Length - 4;
-            if (menuCloseCompleteOffset != ExpectedWeekMenuCloseCompleteOffset)
+            if (menuCloseCompleteOffset != layout.WeekMenuCloseCompleteOffset)
             {
                 throw UnexpectedOffset(
                     "week-start menu close completion",
                     menuCloseCompleteOffset,
-                    ExpectedWeekMenuCloseCompleteOffset);
+                    layout.WeekMenuCloseCompleteOffset);
             }
 
             List<int> getActiveOffsets = FindAllPatternOffsets(data, GetActiveProduceDataPrefix);
             if (getActiveOffsets.Count != 2 ||
-                getActiveOffsets[0] != ExpectedGetActiveProduceDataOffset ||
-                getActiveOffsets[1] != ExpectedGetActiveProduceDataOffset + 0x48)
+                getActiveOffsets[0] != layout.GetActiveProduceDataOffset ||
+                getActiveOffsets[1] != layout.GetActiveProduceDataOffset + 0x48)
             {
-                throw new InvalidDataException("GetActiveProduceData 함수 배치가 예상과 다릅니다.");
+                throw new InvalidDataException(layout.Name + " GetActiveProduceData 함수 배치가 예상과 다릅니다.");
             }
 
             EnsureAllZero(data, stringOffset, stringPayload.Length, "activity-stop string cave");
             EnsureAllZero(
                 data,
-                ActivityStopResultTrampolineOffset,
+                layout.ResultTrampolineOffset,
                 ActivityStopCodeCaveGuardSize,
                 "activity-stop CODE cave");
 
             WriteBytes(data, stringOffset, stringPayload);
-            WriteBytes(data, ExpectedWeekMenuOffset, fourItemMenuCode);
-            WriteBytes(data, ExpectedWeekMenuResultTailOffset, resultHook);
-            WriteBytes(data, ExpectedWeekMenuCloseCompleteOffset, closeHook);
-            WriteBytes(data, ActivityStopResultTrampolineOffset, resultTrampoline);
-            WriteBytes(data, ActivityStopCloseTrampolineOffset, closeTrampoline);
+            WriteBytes(data, layout.WeekMenuOffset, fourItemMenuCode);
+            WriteBytes(data, layout.WeekMenuResultTailOffset, resultHook);
+            WriteBytes(data, layout.WeekMenuCloseCompleteOffset, closeHook);
+            WriteBytes(data, layout.ResultTrampolineOffset, resultTrampoline);
+            WriteBytes(data, layout.CloseTrampolineOffset, closeTrampoline);
 
             ValidateAlreadyPatched(
                 data,
+                layout,
                 stringOffset,
                 stringPayload,
                 fourItemMenuCode,
@@ -167,6 +200,7 @@ namespace ImasKoreanPatcher
 
         private static void ValidateAlreadyPatched(
             byte[] data,
+            PatchLayout layout,
             int stringOffset,
             byte[] stringPayload,
             byte[] fourItemMenuCode,
@@ -176,51 +210,60 @@ namespace ImasKoreanPatcher
             byte[] closeTrampoline)
         {
             int patchedMenuOffset = FindUniquePattern(data, fourItemMenuCode, "patched week-start four-item menu code");
-            if (patchedMenuOffset != ExpectedWeekMenuOffset)
+            if (patchedMenuOffset != layout.WeekMenuOffset)
             {
-                throw UnexpectedOffset("patched week-start menu", patchedMenuOffset, ExpectedWeekMenuOffset);
+                throw UnexpectedOffset("patched week-start menu", patchedMenuOffset, layout.WeekMenuOffset);
             }
 
             EnsureMatches(data, stringOffset, stringPayload, "activity-stop string");
-            EnsureMatches(data, ExpectedWeekMenuResultTailOffset, resultHook, "activity-stop result hook");
-            EnsureMatches(data, ExpectedWeekMenuCloseCompleteOffset, closeHook, "activity-stop close hook");
+            EnsureMatches(data, layout.WeekMenuResultTailOffset, resultHook, "activity-stop result hook");
+            EnsureMatches(data, layout.WeekMenuCloseCompleteOffset, closeHook, "activity-stop close hook");
             EnsureMatches(
                 data,
-                ActivityStopResultTrampolineOffset,
+                layout.ResultTrampolineOffset,
                 resultTrampoline,
                 "activity-stop result trampoline");
             EnsureMatches(
                 data,
-                ActivityStopCloseTrampolineOffset,
+                layout.CloseTrampolineOffset,
                 closeTrampoline,
                 "activity-stop close trampoline");
         }
 
-        private static byte[] BuildFourItemMenuCode(uint stringAddress)
+        private static byte[] BuildFourItemMenuCode(PatchLayout layout, int expectedSize)
         {
             List<byte> code = new List<byte>();
-            int highAdjusted = (int)((stringAddress + 0x8000) >> 16) & 0xFFFF;
-            int low = (int)(stringAddress & 0xFFFF);
-            Append(code, BuildDForm(15, 11, 0, highAdjusted));       // lis r11, activity-stop@ha
+            Append(code, BuildLoadAddressHigh(11, layout.ActivityStopStringAddress));
             Append(code, BuildDForm(32, 3, 30, 0x3F8));             // lwz r3, 0x3f8(r30)
             Append(code, BuildDForm(14, 8, 0, -1));                 // li r8, -1
-            Append(code, BuildDForm(14, 7, 11, low));               // addi r7, r11, activity-stop@l
-            Append(code, BuildDForm(15, 11, 0, 0x8204));            // lis r11, 0x8204
-            Append(code, BuildDForm(14, 6, 11, 0x48C4));            // addi r6, r11, 이대로
-            Append(code, BuildDForm(14, 5, 11, 0x48B4));            // addi r5, r11, 곡 변경
-            Append(code, BuildDForm(14, 4, 11, 0x48A0));            // addi r4, r11, 의상 변경
+            Append(code, BuildAddressLow(7, 11, layout.ActivityStopStringAddress));
+            Append(code, BuildLoadAddressHigh(11, layout.KeepCurrentStringAddress));
+            Append(code, BuildAddressLow(6, 11, layout.KeepCurrentStringAddress));
+            Append(code, BuildAddressLow(5, 11, layout.ChangeSongStringAddress));
+            Append(code, BuildAddressLow(4, 11, layout.ChangeCostumeStringAddress));
             Append(code, BuildDForm(32, 11, 3, 0));                 // lwz r11, 0(r3)
             Append(code, BuildDForm(32, 11, 11, 0x44));             // lwz r11, 0x44(r11)
             Append(code, ParseHex("7d6903a6"));                     // mtctr r11
             Append(code, ParseHex("4e800421"));                     // bctrl
-            return RequireSize(code.ToArray(), OriginalWeekMenuCode.Length, "four-item menu code");
+            return RequireSize(code.ToArray(), expectedSize, "four-item menu code");
         }
 
-        private static byte[] BuildResultTrampoline()
+        private static byte[] BuildLoadAddressHigh(int targetRegister, uint address)
         {
-            uint trampolineAddress = CodeFileOffsetToGuest(ActivityStopResultTrampolineOffset);
-            uint resultTailAddress = CodeFileOffsetToGuest(ExpectedWeekMenuResultTailOffset);
-            uint getActiveAddress = CodeFileOffsetToGuest(ExpectedGetActiveProduceDataOffset);
+            int highAdjusted = (int)((address + 0x8000) >> 16) & 0xFFFF;
+            return BuildDForm(15, targetRegister, 0, highAdjusted);
+        }
+
+        private static byte[] BuildAddressLow(int targetRegister, int sourceRegister, uint address)
+        {
+            return BuildDForm(14, targetRegister, sourceRegister, (int)(address & 0xFFFF));
+        }
+
+        private static byte[] BuildResultTrampoline(PatchLayout layout)
+        {
+            uint trampolineAddress = CodeFileOffsetToGuest(layout, layout.ResultTrampolineOffset);
+            uint resultTailAddress = CodeFileOffsetToGuest(layout, layout.WeekMenuResultTailOffset);
+            uint getActiveAddress = CodeFileOffsetToGuest(layout, layout.GetActiveProduceDataOffset);
             uint commonContinueAddress = resultTailAddress + 0x34DC;
             List<byte> code = new List<byte>();
 
@@ -228,7 +271,7 @@ namespace ImasKoreanPatcher
             Append(code, ParseHex("4182000c"));                               // beq activity_stop
             Append(code, BuildDForm(14, 11, 0, 9));                           // li r11, 9
             Append(code, BuildBranch(CurrentAddress(trampolineAddress, code), resultTailAddress + 4, false));
-            Append(code, BuildDForm(32, 3, 28, -0x840));                      // lwz r3, -0x840(r28)
+            Append(code, BuildDForm(32, 3, 28, layout.ProduceManagerOffset));  // lwz r3, produce manager(r28)
             Append(code, BuildBranch(CurrentAddress(trampolineAddress, code), getActiveAddress, true));
             Append(code, BuildDForm(14, 10, 0, ActivityStopWeekIndex));       // li r10, 0x34
             Append(code, BuildDForm(36, 10, 3, 0x240));                       // stw r10, 0x240(r3)
@@ -239,10 +282,10 @@ namespace ImasKoreanPatcher
             return RequireSize(code.ToArray(), 48, "activity-stop result trampoline");
         }
 
-        private static byte[] BuildCloseTrampoline()
+        private static byte[] BuildCloseTrampoline(PatchLayout layout)
         {
-            uint trampolineAddress = CodeFileOffsetToGuest(ActivityStopCloseTrampolineOffset);
-            uint resultTailAddress = CodeFileOffsetToGuest(ExpectedWeekMenuResultTailOffset);
+            uint trampolineAddress = CodeFileOffsetToGuest(layout, layout.CloseTrampolineOffset);
+            uint resultTailAddress = CodeFileOffsetToGuest(layout, layout.WeekMenuResultTailOffset);
             uint commonContinueAddress = resultTailAddress + 0x34DC;
             List<byte> code = new List<byte>();
 
@@ -263,6 +306,28 @@ namespace ImasKoreanPatcher
             Append(code, BuildDForm(14, 11, 0, 1));                           // li r11, 1
             Append(code, BuildBranch(CurrentAddress(trampolineAddress, code), commonContinueAddress, false));
             return RequireSize(code.ToArray(), 64, "activity-stop close trampoline");
+        }
+
+        private static PatchLayout DetectLayout(byte[] data)
+        {
+            int caveAnchorOffset = FindUniquePattern(
+                data,
+                MakotoCaveAnchorPattern,
+                "Makoto/data cave anchor");
+            if (caveAnchorOffset == BaseLayout.CaveAnchorOffset)
+            {
+                return BaseLayout;
+            }
+
+            if (caveAnchorOffset == TitleUpdateLayout.CaveAnchorOffset)
+            {
+                return TitleUpdateLayout;
+            }
+
+            throw new InvalidDataException(
+                String.Format(
+                    "지원하지 않는 default.xex 배치입니다. Makoto/data cave anchor: 0x{0:X}",
+                    caveAnchorOffset));
         }
 
         private static uint CurrentAddress(uint startAddress, List<byte> code)
@@ -301,14 +366,14 @@ namespace ImasKoreanPatcher
             return U32Be(word);
         }
 
-        private static uint CodeFileOffsetToGuest(int fileOffset)
+        private static uint CodeFileOffsetToGuest(PatchLayout layout, int fileOffset)
         {
-            if (fileOffset < XexCodeFileStart || fileOffset >= XexCodeFileEnd)
+            if (fileOffset < layout.CodeFileStart || fileOffset >= layout.CodeFileEnd)
             {
                 throw new InvalidDataException("XEX CODE 범위 밖 파일 오프셋입니다.");
             }
 
-            return XexCodeFileToGuestBias + (uint)fileOffset;
+            return layout.CodeFileToGuestBias + (uint)fileOffset;
         }
 
         private static byte[] RequireSize(byte[] value, int expectedSize, string label)
@@ -462,6 +527,68 @@ namespace ImasKoreanPatcher
             }
 
             return result;
+        }
+
+        private sealed class PatchLayout
+        {
+            public readonly string Name;
+            public readonly int CaveAnchorOffset;
+            public readonly int WeekMenuOffset;
+            public readonly int WeekMenuResultTailOffset;
+            public readonly int WeekMenuCloseOffset;
+            public readonly int WeekMenuCloseCompleteOffset;
+            public readonly int GetActiveProduceDataOffset;
+            public readonly int ProduceManagerOffset;
+            public readonly int ResultTrampolineOffset;
+            public readonly int CloseTrampolineOffset;
+            public readonly uint ActivityStopStringAddress;
+            public readonly uint KeepCurrentStringAddress;
+            public readonly uint ChangeSongStringAddress;
+            public readonly uint ChangeCostumeStringAddress;
+            public readonly uint CodeFileToGuestBias;
+            public readonly int CodeFileStart;
+            public readonly int CodeFileEnd;
+            public readonly byte[] OriginalWeekMenuCode;
+
+            public PatchLayout(
+                string name,
+                int caveAnchorOffset,
+                int weekMenuOffset,
+                int weekMenuResultTailOffset,
+                int weekMenuCloseOffset,
+                int weekMenuCloseCompleteOffset,
+                int getActiveProduceDataOffset,
+                int produceManagerOffset,
+                int resultTrampolineOffset,
+                int closeTrampolineOffset,
+                uint activityStopStringAddress,
+                uint keepCurrentStringAddress,
+                uint changeSongStringAddress,
+                uint changeCostumeStringAddress,
+                uint codeFileToGuestBias,
+                int codeFileStart,
+                int codeFileEnd,
+                byte[] originalWeekMenuCode)
+            {
+                Name = name;
+                CaveAnchorOffset = caveAnchorOffset;
+                WeekMenuOffset = weekMenuOffset;
+                WeekMenuResultTailOffset = weekMenuResultTailOffset;
+                WeekMenuCloseOffset = weekMenuCloseOffset;
+                WeekMenuCloseCompleteOffset = weekMenuCloseCompleteOffset;
+                GetActiveProduceDataOffset = getActiveProduceDataOffset;
+                ProduceManagerOffset = produceManagerOffset;
+                ResultTrampolineOffset = resultTrampolineOffset;
+                CloseTrampolineOffset = closeTrampolineOffset;
+                ActivityStopStringAddress = activityStopStringAddress;
+                KeepCurrentStringAddress = keepCurrentStringAddress;
+                ChangeSongStringAddress = changeSongStringAddress;
+                ChangeCostumeStringAddress = changeCostumeStringAddress;
+                CodeFileToGuestBias = codeFileToGuestBias;
+                CodeFileStart = codeFileStart;
+                CodeFileEnd = codeFileEnd;
+                OriginalWeekMenuCode = originalWeekMenuCode;
+            }
         }
     }
 }

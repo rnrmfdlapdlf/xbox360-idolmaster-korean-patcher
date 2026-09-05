@@ -24,7 +24,7 @@ namespace ImasKoreanPatcher
             this.fontSize = fontSize;
         }
 
-        public byte[] RenderCell(char ch, int width, int height, int xAdjust, int yAdjust)
+        public byte[] RenderCellAtBaseline(char ch, int width, int height, int xAdjust, int baselineY)
         {
             using (GraphicsPath path = new GraphicsPath())
             {
@@ -36,7 +36,10 @@ namespace ImasKoreanPatcher
                 RectangleF bounds = path.GetBounds();
                 Matrix matrix = new Matrix();
                 float x = (float)Math.Floor((width - bounds.Width) / 2.0f) - bounds.Left + xAdjust;
-                float y = (float)Math.Floor((height - bounds.Height) / 2.0f) - bounds.Top + yAdjust;
+                float emHeight = fontFamily.GetEmHeight(style);
+                float ascent = fontFamily.GetCellAscent(style);
+                float baselineFromOrigin = fontSize * ascent / emHeight;
+                float y = baselineY - baselineFromOrigin;
                 matrix.Translate(x, y);
                 path.Transform(matrix);
 

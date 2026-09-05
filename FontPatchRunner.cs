@@ -9,6 +9,7 @@ namespace ImasKoreanPatcher
         private const int CellWidth = 27;
         private const int CellHeight = 27;
         private const int FontSize = 24;
+        private const int CommonBaselineY = 20;
         private const int CellGuardClear = 1;
 
         public static void PatchExtractedRoot(string extractedRoot, string assetRoot, string workRoot, Action<int, string> progress)
@@ -75,14 +76,16 @@ namespace ImasKoreanPatcher
                     }
 
                     byte[] alpha = GetAlphaPage(output, page, alphaPages);
-                    byte[] donorCell = AlphaBitmap.CropFromPage(alpha, page.Width, x, y, CellWidth, CellHeight);
-                    AlphaBounds donorBounds = AlphaBitmap.GetBounds(donorCell, CellWidth, CellHeight);
-                    byte[] rendered = renderer.RenderCell(entry.Render, CellWidth, CellHeight, entry.RenderXAdjust, entry.RenderYAdjust);
-                    byte[] aligned = AlphaBitmap.AlignToDonorBounds(rendered, CellWidth, CellHeight, donorBounds, entry.PlacementXAdjust, entry.PlacementYAdjust);
-                    pendingDraws.Add(new PendingGlyphDraw(page, x, y, CellWidth, CellHeight, aligned));
+                    byte[] rendered = renderer.RenderCellAtBaseline(
+                        entry.Render,
+                        CellWidth,
+                        CellHeight,
+                        entry.RenderXAdjust + entry.PlacementXAdjust,
+                        CommonBaselineY);
+                    pendingDraws.Add(new PendingGlyphDraw(page, x, y, CellWidth, CellHeight, rendered));
                     guardRects.Add(new GuardRect(page, x - CellGuardClear, y - CellGuardClear, x + CellWidth + CellGuardClear, y + CellHeight + CellGuardClear));
                     AddDirtyBlocks(GetDirtyBlocks(page.Index, dirtyBlocks), page, x - CellGuardClear, y - CellGuardClear, CellWidth + CellGuardClear * 2, CellHeight + CellGuardClear * 2);
-                    AlphaBitmap.PasteToPage(alpha, page.Width, x, y, CellWidth, CellHeight, aligned);
+                    AlphaBitmap.PasteToPage(alpha, page.Width, x, y, CellWidth, CellHeight, rendered);
                 }
             }
 
