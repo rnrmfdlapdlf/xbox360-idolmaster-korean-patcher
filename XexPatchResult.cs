@@ -15,6 +15,7 @@ namespace ImasKoreanPatcher
         public int SpecialAudition3GatesAlreadyPatched;
         public int ActivityStopMenusPatched;
         public int ActivityStopMenusAlreadyPatched;
+        public CommunicationPerfectPatchResult CommunicationPerfect;
         public int ReplacementsTooLong;
         public int MissingRemapErrors;
     }

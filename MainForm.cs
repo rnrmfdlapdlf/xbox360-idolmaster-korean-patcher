@@ -10,7 +10,7 @@ namespace ImasKoreanPatcher
 {
     public sealed class MainForm : Form
     {
-        private static readonly bool ShowCommunicationPerfectCheat = false;
+        private static readonly bool ShowCommunicationPerfectCheat = true;
 
         private Panel dropPanel;
         private Label dropTitleLabel;
@@ -308,7 +308,7 @@ namespace ImasKoreanPatcher
             communicationPerfectCheckBox = new CheckBox();
             communicationPerfectCheckBox.Anchor = AnchorStyles.Left;
             communicationPerfectCheckBox.AutoSize = true;
-            communicationPerfectCheckBox.Text = "영업 선택지 항상 퍼펙트";
+            communicationPerfectCheckBox.Text = "영업 결과 항상 퍼펙트";
             communicationPerfectCheckBox.ForeColor = Color.FromArgb(65, 72, 86);
             communicationPerfectCheckBox.Margin = new Padding(0);
             communicationPerfectCheckBox.Visible = ShowCommunicationPerfectCheat;
@@ -580,6 +580,15 @@ namespace ImasKoreanPatcher
             {
                 patchButton.Enabled = IsIsoPath(selectedIsoPath) && hasXexTool && !workerBusy;
             }
+
+            if (communicationPerfectCheckBox != null)
+            {
+                communicationPerfectCheckBox.Enabled = ShowCommunicationPerfectCheat && hasXexTool && !workerBusy;
+                if (!hasXexTool)
+                {
+                    communicationPerfectCheckBox.Checked = false;
+                }
+            }
         }
 
         private static void SetFileStatus(Label label, string caption, string path, bool required)
@@ -684,7 +693,6 @@ namespace ImasKoreanPatcher
                 doubleAuditionFansCheckBox.Enabled = true;
                 ensureAuditionPassCountCheckBox.Enabled = true;
                 doubleLessonGainsCheckBox.Enabled = true;
-                communicationPerfectCheckBox.Enabled = ShowCommunicationPerfectCheat;
                 UpdateFileStatusDisplay();
                 if (completedArgs.Error != null)
                 {
@@ -823,45 +831,6 @@ namespace ImasKoreanPatcher
             ValidateCreditLinePatch(creditLineResult);
             */
 
-            CommunicationPerfectPatchResult communicationPerfectResult = null;
-            if (communicationPerfect)
-            {
-                ReportStage(worker, 66, "영업 옵션 적용 중...");
-                CommunicationPerfectPatcher communicationPatcher = CommunicationPerfectPatcher.Load(assetRoot);
-                communicationPerfectResult = communicationPatcher.PatchExtractedRoot(
-                    extractRoot,
-                    delegate(int percent, string message)
-                    {
-                        Report(worker, percent, message);
-                    });
-
-                if (communicationPerfectResult.ManifestRows > 0 && communicationPerfectResult.ScbEntriesSeen == 0)
-                {
-                    throw new InvalidOperationException("영업 선택지 퍼펙트 패치 대상을 찾을 수 없습니다.");
-                }
-
-                if (communicationPerfectResult.ScoreValuesPatched == 0 && communicationPerfectResult.ScoreValuesAlreadyPerfect == 0)
-                {
-                    throw new InvalidOperationException("영업 선택지 퍼펙트에 반영된 점수가 0개입니다.");
-                }
-
-                if (communicationPerfectResult.MissingBnaFiles > 0 ||
-                    communicationPerfectResult.MissingScbEntries > 0 ||
-                    communicationPerfectResult.ScoreMismatches > 0 ||
-                    communicationPerfectResult.InvalidRows > 0 ||
-                    communicationPerfectResult.Errors > 0)
-                {
-                    throw new InvalidOperationException(
-                        String.Format(
-                            "영업 선택지 퍼펙트 패치 중 누락/오류가 있습니다. BNA {0:N0}, SCB {1:N0}, Mismatch {2:N0}, Invalid {3:N0}, Errors {4:N0}",
-                            communicationPerfectResult.MissingBnaFiles,
-                            communicationPerfectResult.MissingScbEntries,
-                            communicationPerfectResult.ScoreMismatches,
-                            communicationPerfectResult.InvalidRows,
-                            communicationPerfectResult.Errors));
-                }
-            }
-
             ReportStage(worker, 70, "BXR 번역 중...");
             BxrTextPatcher bxrPatcher = new BxrTextPatcher(bxrTranslations, remapper);
             BxrPatchResult bxrResult = bxrPatcher.PatchExtractedRoot(
@@ -875,6 +844,9 @@ namespace ImasKoreanPatcher
             {
                 throw new InvalidOperationException("BXR에 반영된 문자열이 0개입니다.");
             }
+
+            ReportStage(worker, 72, "대사 시작 위치 조정 중...");
+            DialogueLayoutPatcher.PatchExtractedRoot(extractRoot);
 
             LessonGainPatchResult lessonGainResult = null;
             if (doubleLessonGains)
@@ -964,6 +936,7 @@ namespace ImasKoreanPatcher
                 true,
                 unlockSpecialAudition3,
                 addActivityStopMenu,
+                communicationPerfect,
                 delegate(int percent, string message)
                 {
                     Report(worker, percent, message);
@@ -981,6 +954,14 @@ namespace ImasKoreanPatcher
                 xexResult.ActivityStopMenusAlreadyPatched == 0)
             {
                 throw new InvalidOperationException("활동 중단 메뉴 패치가 반영되지 않았습니다.");
+            }
+
+            if (communicationPerfect &&
+                (xexResult.CommunicationPerfect == null ||
+                 xexResult.CommunicationPerfect.ResultBranchesPatched +
+                 xexResult.CommunicationPerfect.ResultBranchesAlreadyPatched != 1))
+            {
+                throw new InvalidOperationException("영업 결과 퍼펙트 판정 패치가 반영되지 않았습니다.");
             }
 
             ReportStage(worker, 82, "폰트 적용 중...");
@@ -1047,7 +1028,7 @@ namespace ImasKoreanPatcher
                     imageTexturesChanged,
                     xexResult.StringsPatched,
                     FormatCreditLineSummary(creditLineResult),
-                    FormatCommunicationPerfectSummary(communicationPerfectResult) + FormatAuditionFanSummary(auditionFanResult) + FormatLessonGainSummary(lessonGainResult) + FormatSpecialAudition3Summary(xexResult) + FormatActivityStopMenuSummary(xexResult) + FormatTitleUpdateSummary(titleUpdateApplied),
+                    FormatCommunicationPerfectSummary(xexResult.CommunicationPerfect) + FormatAuditionFanSummary(auditionFanResult) + FormatLessonGainSummary(lessonGainResult) + FormatSpecialAudition3Summary(xexResult) + FormatActivityStopMenuSummary(xexResult) + FormatTitleUpdateSummary(titleUpdateApplied),
                     outputIso));
         }
 
@@ -1184,14 +1165,14 @@ namespace ImasKoreanPatcher
                 return String.Empty;
             }
 
-            if (result.ScoreValuesPatched > 0)
+            if (result.ResultBranchesPatched > 0)
             {
-                return String.Format(", 영업 퍼펙트 {0:N0}개 반영", result.ScoreValuesPatched);
+                return ", 영업 결과 퍼펙트 적용";
             }
 
-            if (result.ScoreValuesAlreadyPerfect > 0)
+            if (result.ResultBranchesAlreadyPatched > 0)
             {
-                return String.Format(", 영업 퍼펙트 이미 적용 {0:N0}개", result.ScoreValuesAlreadyPerfect);
+                return ", 영업 결과 퍼펙트 이미 적용";
             }
 
             return String.Empty;

@@ -146,16 +146,37 @@ namespace ImasKoreanPatcher
             bool addActivityStopMenu,
             Action<int, string> progress)
         {
+            return PatchExtractedRoot(
+                extractedRoot,
+                xexToolPath,
+                workRoot,
+                patchText,
+                unlockSpecialAudition3,
+                addActivityStopMenu,
+                false,
+                progress);
+        }
+
+        public XexPatchResult PatchExtractedRoot(
+            string extractedRoot,
+            string xexToolPath,
+            string workRoot,
+            bool patchText,
+            bool unlockSpecialAudition3,
+            bool addActivityStopMenu,
+            bool communicationPerfect,
+            Action<int, string> progress)
+        {
             XexPatchResult result = new XexPatchResult();
             result.TranslationRows = patchText ? translations.Count : 0;
-            if (!patchText && !unlockSpecialAudition3 && !addActivityStopMenu)
+            if (!patchText && !unlockSpecialAudition3 && !addActivityStopMenu && !communicationPerfect)
             {
                 return result;
             }
 
             if (patchText && translations.Count == 0)
             {
-                if (!unlockSpecialAudition3 && !addActivityStopMenu)
+                if (!unlockSpecialAudition3 && !addActivityStopMenu && !communicationPerfect)
                 {
                     return result;
                 }
@@ -225,17 +246,26 @@ namespace ImasKoreanPatcher
                 result.ActivityStopMenusAlreadyPatched = activityStopResult.MenusAlreadyPatched;
             }
 
+            if (communicationPerfect)
+            {
+                Report(progress, 79, "영업 결과 퍼펙트 판정 패치 중...");
+                result.CommunicationPerfect = CommunicationPerfectPatcher.Patch(data);
+            }
+
             File.WriteAllBytes(defaultXexPath, data);
-            if (unlockSpecialAudition3 || addActivityStopMenu)
+            if (unlockSpecialAudition3 || addActivityStopMenu || communicationPerfect)
             {
                 Report(
                     progress,
                     80,
                     String.Format(
-                        "default.xex 패치 완료: {0:N0}개 문자열, 특별 오디션 3 {1:N0}개, 활동 중단 메뉴 {2:N0}개",
+                        "default.xex 패치 완료: {0:N0}개 문자열, 특별 오디션 3 {1:N0}개, 활동 중단 메뉴 {2:N0}개{3}",
                         result.StringsPatched,
                         result.SpecialAudition3GatesPatched,
-                        result.ActivityStopMenusPatched));
+                        result.ActivityStopMenusPatched,
+                        result.CommunicationPerfect == null ? String.Empty :
+                            (result.CommunicationPerfect.ResultBranchesPatched > 0 ?
+                                ", 영업 결과 퍼펙트 적용" : ", 영업 결과 퍼펙트 이미 적용")));
             }
             else
             {

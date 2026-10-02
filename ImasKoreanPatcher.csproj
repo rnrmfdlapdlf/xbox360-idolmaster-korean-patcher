@@ -61,6 +61,7 @@
     <Compile Include="BxrPatchResult.cs" />
     <Compile Include="BxrTextPatcher.cs" />
     <Compile Include="BxrTextTranslationStore.cs" />
+    <Compile Include="DialogueLayoutPatcher.cs" />
     <Compile Include="ExternalToolRunner.cs" />
     <Compile Include="FontPatchRunner.cs" />
     <Compile Include="GlyphAlphaRenderer.cs" />

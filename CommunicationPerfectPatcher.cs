@@ -1,412 +1,115 @@
 using System;
-using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
-using System.Text;
 
 namespace ImasKoreanPatcher
 {
-    internal sealed class CommunicationPerfectPatcher
+    internal static class CommunicationPerfectPatcher
     {
-        private const int ScbSectionTable = 0x70;
-        private const int ScbSectionCount = 7;
+        private const int ResultBranchOffset = 12;
+        private static readonly byte[] Nop = new byte[] { 0x60, 0x00, 0x00, 0x00 };
 
-        private readonly List<CommunicationPerfectPatchEntry> entries;
-
-        private CommunicationPerfectPatcher(List<CommunicationPerfectPatchEntry> entries)
+        // Both the original game and TU classify the final communication result here.
+        // Bypass the below-threshold branch so the existing Perfect (3) path stores
+        // the result before the game displays it and processes its rewards.
+        private static readonly byte[] OriginalResultPattern = new byte[]
         {
-            this.entries = entries;
-        }
-
-        public static CommunicationPerfectPatcher Load(string assetRoot)
+            0x39, 0x60, 0x00, 0x01, 0x7F, 0x1D, 0x18, 0x00,
+            0x91, 0x7E, 0x0A, 0xD8, 0x41, 0x98, 0x00, 0x0C,
+            0x39, 0x60, 0x00, 0x03, 0x48, 0x00, 0x00, 0x28,
+            0x2F, 0x1D, 0x00, 0x00, 0x41, 0x99, 0x00, 0x0C,
+            0x39, 0x60, 0x00, 0x00, 0x48, 0x00, 0x00, 0x18,
+            0x39, 0x63, 0xFF, 0xFF, 0x7D, 0x7D, 0x58, 0x50,
+            0x7D, 0x6B, 0x00, 0x34, 0x55, 0x6B, 0xDF, 0xFE,
+            0x39, 0x6B, 0x00, 0x01
+        };
+        private static readonly byte[] PerfectResultPattern = BuildPerfectResultPattern();
+        private static readonly byte[] OriginalResultStore = new byte[]
         {
-            string manifestPath = Path.Combine(assetRoot, "communication_always_perfect.jsonl");
-            if (!File.Exists(manifestPath))
+            0x91, 0x7E, 0x0A, 0xD8
+        };
+        private static readonly byte[] TitleUpdateResultStore = new byte[]
+        {
+            0x89, 0x5E, 0x00, 0xA9, 0x91, 0x7E, 0x0A, 0xD8,
+            0x2B, 0x0A, 0x00, 0x00, 0x40, 0x9A, 0x00, 0x6C
+        };
+
+        public static CommunicationPerfectPatchResult Patch(byte[] data)
+        {
+            if (data == null)
             {
-                throw new FileNotFoundException("Communication perfect patch data was not found.", manifestPath);
+                throw new ArgumentNullException("data");
             }
 
-            List<CommunicationPerfectPatchEntry> rows = new List<CommunicationPerfectPatchEntry>();
-            using (StreamReader reader = new StreamReader(manifestPath, Encoding.UTF8, true))
+            int foundOffset = -1;
+            bool alreadyPatched = false;
+            for (int offset = 0; offset <= data.Length - OriginalResultPattern.Length; offset++)
             {
-                string line;
-                int lineNumber = 0;
-                while ((line = reader.ReadLine()) != null)
+                bool original = MatchesPattern(data, offset, OriginalResultPattern);
+                bool patched = MatchesPattern(data, offset, PerfectResultPattern);
+                if (!original && !patched)
                 {
-                    lineNumber++;
-                    if (line.Trim().Length == 0)
-                    {
-                        continue;
-                    }
-
-                    string eventType = JsonTranslationStore.TryReadStringProperty(line, "event_type");
-                    string bna = JsonTranslationStore.TryReadStringProperty(line, "bna");
-                    string entry = JsonTranslationStore.TryReadStringProperty(line, "entry");
-                    string commandOffset = JsonTranslationStore.TryReadStringProperty(line, "cmd_offset");
-                    string score = JsonTranslationStore.TryReadStringProperty(line, "score");
-                    string maxScore = JsonTranslationStore.TryReadStringProperty(line, "max_score");
-                    if (String.IsNullOrEmpty(eventType) ||
-                        String.IsNullOrEmpty(bna) ||
-                        String.IsNullOrEmpty(entry) ||
-                        String.IsNullOrEmpty(commandOffset) ||
-                        String.IsNullOrEmpty(score) ||
-                        String.IsNullOrEmpty(maxScore))
-                    {
-                        throw new InvalidDataException("Invalid communication perfect patch row at line " + lineNumber.ToString() + ".");
-                    }
-
-                    rows.Add(new CommunicationPerfectPatchEntry(
-                        NormalizePath(bna),
-                        NormalizePath(entry),
-                        eventType,
-                        ParseRequiredOffset(commandOffset, lineNumber),
-                        ParseRequiredScore(score, lineNumber),
-                        ParseRequiredScore(maxScore, lineNumber)));
+                    continue;
                 }
+
+                if (foundOffset >= 0)
+                {
+                    throw new InvalidDataException("영업 결과 퍼펙트 판정 코드가 여러 곳에서 발견되었습니다. 패치를 중단합니다.");
+                }
+
+                foundOffset = offset;
+                alreadyPatched = patched;
             }
 
-            return new CommunicationPerfectPatcher(rows);
-        }
+            if (foundOffset < 0)
+            {
+                throw new InvalidDataException("default.xex에서 영업 결과 퍼펙트 판정 코드를 찾을 수 없습니다.");
+            }
 
-        public CommunicationPerfectPatchResult PatchExtractedRoot(string extractedRoot, Action<int, string> progress)
-        {
+            int storeOffset = foundOffset + OriginalResultPattern.Length;
+            if ((foundOffset & 3) != 0 ||
+                (!MatchesPattern(data, storeOffset, OriginalResultStore) &&
+                 !MatchesPattern(data, storeOffset, TitleUpdateResultStore)))
+            {
+                throw new InvalidDataException("영업 결과 퍼펙트 판정 코드의 저장 위치가 예상과 다릅니다. 패치를 중단합니다.");
+            }
+
             CommunicationPerfectPatchResult result = new CommunicationPerfectPatchResult();
-            result.ManifestRows = entries.Count;
-            if (entries.Count == 0)
+            if (alreadyPatched)
             {
-                return result;
+                result.ResultBranchesAlreadyPatched = 1;
             }
-
-            Dictionary<string, List<CommunicationPerfectPatchEntry>> byBna =
-                new Dictionary<string, List<CommunicationPerfectPatchEntry>>(StringComparer.OrdinalIgnoreCase);
-            for (int index = 0; index < entries.Count; index++)
+            else
             {
-                CommunicationPerfectPatchEntry entry = entries[index];
-                List<CommunicationPerfectPatchEntry> rows;
-                if (!byBna.TryGetValue(entry.BnaPath, out rows))
-                {
-                    rows = new List<CommunicationPerfectPatchEntry>();
-                    byBna[entry.BnaPath] = rows;
-                }
-
-                rows.Add(entry);
-            }
-
-            int bnaIndex = 0;
-            foreach (KeyValuePair<string, List<CommunicationPerfectPatchEntry>> pair in byBna)
-            {
-                if (progress != null)
-                {
-                    int percent = 65 + (int)(1.0 * bnaIndex / Math.Max(1, byBna.Count));
-                    progress(percent, String.Format("\uc601\uc5c5 \ud37c\ud399\ud2b8 \uce58\ud2b8 \uc801\uc6a9 \uc911... {0:N0}/{1:N0}", bnaIndex + 1, byBna.Count));
-                }
-
-                bnaIndex++;
-                try
-                {
-                    PatchBnaFile(extractedRoot, pair.Key, pair.Value, result);
-                }
-                catch
-                {
-                    result.Errors++;
-                }
-            }
-
-            if (progress != null)
-            {
-                progress(66, String.Format("\uc601\uc5c5 \ud37c\ud399\ud2b8 \uce58\ud2b8 \uc644\ub8cc: {0:N0}\uac1c", result.ScoreValuesPatched));
+                Buffer.BlockCopy(Nop, 0, data, foundOffset + ResultBranchOffset, Nop.Length);
+                result.ResultBranchesPatched = 1;
             }
 
             return result;
         }
 
-        private static void PatchBnaFile(
-            string extractedRoot,
-            string bnaRelativePath,
-            List<CommunicationPerfectPatchEntry> rows,
-            CommunicationPerfectPatchResult result)
+        private static byte[] BuildPerfectResultPattern()
         {
-            string bnaPath = Path.Combine(extractedRoot, bnaRelativePath.Replace('/', Path.DirectorySeparatorChar));
-            if (!File.Exists(bnaPath))
-            {
-                result.MissingBnaFiles++;
-                return;
-            }
-
-            result.BnaFilesSeen++;
-            byte[] original = File.ReadAllBytes(bnaPath);
-            if (!BnaContainer.IsBna(original))
-            {
-                result.Errors++;
-                return;
-            }
-
-            BnaContainer bna = BnaContainer.Parse(original);
-            Dictionary<string, List<CommunicationPerfectPatchEntry>> byEntry =
-                new Dictionary<string, List<CommunicationPerfectPatchEntry>>(StringComparer.OrdinalIgnoreCase);
-            for (int index = 0; index < rows.Count; index++)
-            {
-                CommunicationPerfectPatchEntry row = rows[index];
-                List<CommunicationPerfectPatchEntry> entryRows;
-                if (!byEntry.TryGetValue(row.EntryPath, out entryRows))
-                {
-                    entryRows = new List<CommunicationPerfectPatchEntry>();
-                    byEntry[row.EntryPath] = entryRows;
-                }
-
-                entryRows.Add(row);
-            }
-
-            bool changed = false;
-            foreach (KeyValuePair<string, List<CommunicationPerfectPatchEntry>> pair in byEntry)
-            {
-                BnaContainerEntry entry = FindEntry(bna.Entries, pair.Key);
-                if (entry == null)
-                {
-                    result.MissingScbEntries++;
-                    continue;
-                }
-
-                result.ScbEntriesSeen++;
-                if (PatchScb(entry.Data, pair.Value, result))
-                {
-                    changed = true;
-                }
-            }
-
-            if (changed)
-            {
-                File.WriteAllBytes(bnaPath, bna.Rebuild());
-                result.BnaFilesPatched++;
-            }
+            byte[] pattern = (byte[])OriginalResultPattern.Clone();
+            Buffer.BlockCopy(Nop, 0, pattern, ResultBranchOffset, Nop.Length);
+            return pattern;
         }
 
-        private static bool PatchScb(
-            byte[] scbData,
-            List<CommunicationPerfectPatchEntry> rows,
-            CommunicationPerfectPatchResult result)
+        private static bool MatchesPattern(byte[] data, int offset, byte[] pattern)
         {
-            int commandSectionOffset;
-            int commandSectionSize;
-            if (!TryFindScbSection(scbData, "CMD", out commandSectionOffset, out commandSectionSize))
-            {
-                result.Errors++;
-                return false;
-            }
-
-            bool changed = false;
-            for (int index = 0; index < rows.Count; index++)
-            {
-                CommunicationPerfectPatchEntry row = rows[index];
-                int scoreFieldOffset = GetScoreFieldOffset(row.EventType);
-                if (scoreFieldOffset < 0)
-                {
-                    result.InvalidRows++;
-                    continue;
-                }
-
-                long commandStart = (long)commandSectionOffset + row.CommandOffset;
-                long scoreOffset = commandStart + scoreFieldOffset;
-                long commandSectionEnd = (long)commandSectionOffset + commandSectionSize;
-                if (commandStart < commandSectionOffset ||
-                    scoreOffset < commandSectionOffset ||
-                    scoreOffset + 4 > commandSectionEnd ||
-                    scoreOffset + 4 > scbData.Length)
-                {
-                    result.InvalidRows++;
-                    continue;
-                }
-
-                uint current = ReadU32(scbData, (int)scoreOffset);
-                if (current == row.MaxScore)
-                {
-                    result.ScoreValuesAlreadyPerfect++;
-                    continue;
-                }
-
-                if (current != row.Score)
-                {
-                    result.ScoreMismatches++;
-                    continue;
-                }
-
-                WriteU32(scbData, (int)scoreOffset, row.MaxScore);
-                result.ScoreValuesPatched++;
-                changed = true;
-            }
-
-            return changed;
-        }
-
-        private static int GetScoreFieldOffset(string eventType)
-        {
-            if (String.Equals(eventType, "choice", StringComparison.OrdinalIgnoreCase))
-            {
-                return 8;
-            }
-
-            if (String.Equals(eventType, "touch", StringComparison.OrdinalIgnoreCase))
-            {
-                return 16;
-            }
-
-            return -1;
-        }
-
-        private static bool TryFindScbSection(byte[] data, string wantedLabel, out int sectionOffset, out int sectionSize)
-        {
-            sectionOffset = 0;
-            sectionSize = 0;
-            if (data.Length < ScbSectionTable + ScbSectionCount * 16 || !StartsWithAscii(data, "SCB"))
+            if (offset < 0 || offset > data.Length - pattern.Length)
             {
                 return false;
             }
 
-            for (int index = 0; index < ScbSectionCount; index++)
+            for (int index = 0; index < pattern.Length; index++)
             {
-                int tableOffset = ScbSectionTable + index * 16;
-                string label = DecodeSectionLabel(data, tableOffset);
-                uint sizeRaw = ReadU32(data, tableOffset + 4);
-                uint offsetRaw = ReadU32(data, tableOffset + 8);
-                if (sizeRaw > Int32.MaxValue || offsetRaw > Int32.MaxValue)
-                {
-                    return false;
-                }
-
-                int size = (int)sizeRaw;
-                int offset = (int)offsetRaw;
-                if (offset < 0 || size < 0 || (long)offset + size > data.Length)
-                {
-                    return false;
-                }
-
-                if (String.Equals(label, wantedLabel, StringComparison.Ordinal))
-                {
-                    sectionOffset = offset;
-                    sectionSize = size;
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private static BnaContainerEntry FindEntry(List<BnaContainerEntry> entries, string entryPath)
-        {
-            for (int index = 0; index < entries.Count; index++)
-            {
-                if (String.Equals(entries[index].Path, entryPath, StringComparison.OrdinalIgnoreCase))
-                {
-                    return entries[index];
-                }
-            }
-
-            return null;
-        }
-
-        private static int ParseRequiredOffset(string value, int lineNumber)
-        {
-            uint parsed;
-            string trimmed = value.Trim();
-            if (trimmed.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-            {
-                if (UInt32.TryParse(trimmed.Substring(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out parsed) &&
-                    parsed <= Int32.MaxValue)
-                {
-                    return (int)parsed;
-                }
-            }
-            else if (UInt32.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out parsed) &&
-                parsed <= Int32.MaxValue)
-            {
-                return (int)parsed;
-            }
-
-            throw new InvalidDataException("Invalid command offset at communication perfect patch line " + lineNumber.ToString() + ".");
-        }
-
-        private static uint ParseRequiredScore(string value, int lineNumber)
-        {
-            uint parsed;
-            if (UInt32.TryParse(value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out parsed))
-            {
-                return parsed;
-            }
-
-            throw new InvalidDataException("Invalid score at communication perfect patch line " + lineNumber.ToString() + ".");
-        }
-
-        private static uint ReadU32(byte[] data, int offset)
-        {
-            return (uint)((data[offset] << 24) | (data[offset + 1] << 16) | (data[offset + 2] << 8) | data[offset + 3]);
-        }
-
-        private static void WriteU32(byte[] data, int offset, uint value)
-        {
-            data[offset] = (byte)((value >> 24) & 0xFF);
-            data[offset + 1] = (byte)((value >> 16) & 0xFF);
-            data[offset + 2] = (byte)((value >> 8) & 0xFF);
-            data[offset + 3] = (byte)(value & 0xFF);
-        }
-
-        private static bool StartsWithAscii(byte[] data, string value)
-        {
-            if (data.Length < value.Length)
-            {
-                return false;
-            }
-
-            for (int index = 0; index < value.Length; index++)
-            {
-                if (data[index] != (byte)value[index])
+                if (data[offset + index] != pattern[index])
                 {
                     return false;
                 }
             }
 
             return true;
-        }
-
-        private static string DecodeSectionLabel(byte[] data, int offset)
-        {
-            int length = 0;
-            while (length < 4 && offset + length < data.Length && data[offset + length] != 0)
-            {
-                length++;
-            }
-
-            return Encoding.ASCII.GetString(data, offset, length);
-        }
-
-        private static string NormalizePath(string path)
-        {
-            return path.Replace('\\', '/').Trim('/');
-        }
-
-        private sealed class CommunicationPerfectPatchEntry
-        {
-            public readonly string BnaPath;
-            public readonly string EntryPath;
-            public readonly string EventType;
-            public readonly int CommandOffset;
-            public readonly uint Score;
-            public readonly uint MaxScore;
-
-            public CommunicationPerfectPatchEntry(
-                string bnaPath,
-                string entryPath,
-                string eventType,
-                int commandOffset,
-                uint score,
-                uint maxScore)
-            {
-                BnaPath = bnaPath;
-                EntryPath = entryPath;
-                EventType = eventType;
-                CommandOffset = commandOffset;
-                Score = score;
-                MaxScore = maxScore;
-            }
         }
     }
 }
