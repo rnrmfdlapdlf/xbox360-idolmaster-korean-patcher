@@ -156,11 +156,6 @@ namespace ImasKoreanPatcher
                 return '.';
             }
 
-            if (ch == '\u2661')
-            {
-                return '\u2606';
-            }
-
             return ch;
         }
 

@@ -12,6 +12,22 @@ namespace ImasKoreanPatcher
         private const int CommonBaselineY = 20;
         private const int CellGuardClear = 1;
 
+        // Symbols redrawn in their own NFH slot with the Korean TTF so they match
+        // the Hangul glyphs instead of keeping the original Japanese shape.
+        // Same list as TTF_SYMBOL_CHARS in tools/patch_font_punctuation_positions.py:
+        // each glyph fits its original atlas box and no emoticon mixes it with an
+        // unconvertible character. U+00A7 is left out because its box overlaps the
+        // area the game reads for the patched tilde. U+2026 is left out because the
+        // TTF dots are narrower than the original and leave gaps in "……".
+        private const string TtfSymbolChars =
+            "?!？！『』「」" +   // ? ! ？ ！ 『 』 「 」
+            ",，■─━" +                 // , ， ■ ─ ━
+            "＊⇒’＆[]$";                // ＊ ⇒ ’ ＆ [ ] $
+
+        // Hangul donor glyphs mostly have NFH bearing Y 22. Shifting by each
+        // symbol's own bearing puts its baseline on the Hangul screen baseline.
+        private const int DonorBearingY = 22;
+
         public static void PatchExtractedRoot(string extractedRoot, string assetRoot, string workRoot, Action<int, string> progress)
         {
             string initialTempBna = Path.Combine(extractedRoot, Path.Combine("root", Path.Combine("initialTemp", "initialTemp.bna")));
@@ -87,6 +103,8 @@ namespace ImasKoreanPatcher
                     AddDirtyBlocks(GetDirtyBlocks(page.Index, dirtyBlocks), page, x - CellGuardClear, y - CellGuardClear, CellWidth + CellGuardClear * 2, CellHeight + CellGuardClear * 2);
                     AlphaBitmap.PasteToPage(alpha, page.Width, x, y, CellWidth, CellHeight, rendered);
                 }
+
+                AddTtfSymbolPatches(output, nfh, texture, renderer, alphaPages, dirtyBlocks, pendingDraws);
             }
 
             AddCenteredTildePatch(output, nfh, texture, alphaPages, dirtyBlocks, pendingDraws);
@@ -117,6 +135,47 @@ namespace ImasKoreanPatcher
             }
 
             return output;
+        }
+
+        private static void AddTtfSymbolPatches(
+            byte[] output,
+            NfhFont nfh,
+            NutTexture texture,
+            GlyphAlphaRenderer renderer,
+            Dictionary<int, byte[]> alphaPages,
+            Dictionary<int, HashSet<int>> dirtyBlocks,
+            List<PendingGlyphDraw> pendingDraws)
+        {
+            foreach (char symbol in TtfSymbolChars)
+            {
+                NfhGlyph glyph = nfh.FindGlyph(symbol);
+                if (glyph == null)
+                {
+                    throw new InvalidDataException("The Xbox font does not contain the symbol glyph U+" + ((int)symbol).ToString("X4") + ".");
+                }
+
+                NutTexturePage page = texture.GetPage(glyph.PageIndex);
+                if (page == null)
+                {
+                    throw new InvalidDataException("The Xbox font symbol glyph references a missing texture page.");
+                }
+
+                int x = glyph.X;
+                int y = glyph.Y;
+                int width = glyph.AtlasWidth;
+                int height = glyph.AtlasHeight;
+                if (x < 0 || y < 0 || x + width > page.Width || y + height > page.Height)
+                {
+                    throw new InvalidDataException("The Xbox font symbol glyph is outside its texture page.");
+                }
+
+                int baselineY = glyph.BearingY - DonorBearingY + CommonBaselineY;
+                byte[] rendered = renderer.RenderInBoxAtBaseline(symbol, width, height, baselineY);
+                byte[] alpha = GetAlphaPage(output, page, alphaPages);
+                pendingDraws.Add(new PendingGlyphDraw(page, x, y, width, height, rendered));
+                AddDirtyBlocks(GetDirtyBlocks(page.Index, dirtyBlocks), page, x, y, width, height);
+                AlphaBitmap.PasteToPage(alpha, page.Width, x, y, width, height, rendered);
+            }
         }
 
         private static void AddCenteredTildePatch(

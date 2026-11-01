@@ -55,6 +55,44 @@ namespace ImasKoreanPatcher
             }
         }
 
+        // Draws a symbol into its original atlas box without shrinking it. The
+        // baseline is kept when the box allows; boxes too short for that (, ─)
+        // keep the ink inside the box, where the original glyph sat.
+        public byte[] RenderInBoxAtBaseline(char ch, int width, int height, int baselineY)
+        {
+            using (GraphicsPath path = new GraphicsPath())
+            {
+                StringFormat format = (StringFormat)StringFormat.GenericTypographic.Clone();
+                format.FormatFlags |= StringFormatFlags.NoClip;
+                FontStyle style = fontFamily.IsStyleAvailable(FontStyle.Regular) ? FontStyle.Regular : FontStyle.Bold;
+                path.AddString(ch.ToString(), fontFamily, (int)style, fontSize, new PointF(0, 0), format);
+
+                RectangleF bounds = path.GetBounds();
+                if (bounds.Width > width + 0.5f || bounds.Height > height + 0.5f)
+                {
+                    throw new InvalidOperationException(
+                        "Symbol U+" + ((int)ch).ToString("X4") + " does not fit its " + width + "x" + height + " atlas box.");
+                }
+
+                float baselineFromOrigin = fontSize * fontFamily.GetCellAscent(style) / fontFamily.GetEmHeight(style);
+                float x = (float)Math.Floor((width - bounds.Width) / 2.0f) - bounds.Left;
+                float top = baselineY - baselineFromOrigin + bounds.Top;
+                top = Math.Max(0, Math.Min(height - bounds.Height, top));
+                Matrix matrix = new Matrix();
+                matrix.Translate(x, top - bounds.Top);
+                path.Transform(matrix);
+
+                using (Bitmap bitmap = new Bitmap(width, height, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
+                using (Graphics graphics = Graphics.FromImage(bitmap))
+                {
+                    graphics.Clear(Color.Transparent);
+                    graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                    graphics.FillPath(Brushes.White, path);
+                    return BitmapToAlpha(bitmap);
+                }
+            }
+        }
+
         public static byte[] RenderCenteredTilde(int width, int height)
         {
             const int scale = 8;

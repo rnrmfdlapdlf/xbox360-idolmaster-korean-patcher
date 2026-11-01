@@ -105,6 +105,10 @@ namespace ImasKoreanPatcher
         public int BitmapX { get { return X + (int)Math.Round(ToSigned(fields[4]) / 64.0); } }
         public int BitmapWidth { get { return Math.Max(1, (int)Math.Round(ToSigned(fields[5]) / 64.0)); } }
         public int BitmapHeight { get { return Math.Max(1, (int)Math.Round(ToSigned(fields[6]) / 64.0)); } }
+        // Bytes 0x14/0x15 of the record hold the tight atlas bitmap size minus one.
+        public int AtlasWidth { get { return (fields[10] >> 8) + 1; } }
+        public int AtlasHeight { get { return (fields[10] & 0xFF) + 1; } }
+        public int BearingY { get { return (int)Math.Round(ToSigned(fields[5]) / 64.0); } }
         public int Codepoint { get { return fields[11]; } }
 
         public char Character
